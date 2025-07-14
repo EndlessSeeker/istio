@@ -16,6 +16,8 @@ package controller
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/util/sets"
 	"os"
 
 	v1 "k8s.io/api/core/v1"
@@ -76,6 +78,7 @@ type NamespaceController struct {
 	namespaces kclient.Client[*v1.Namespace]
 	configmaps kclient.Client[*v1.ConfigMap]
 
+	ignoredNamespaces sets.Set[string]
 	// if meshConfig.DiscoverySelectors specified, DiscoveryNamespacesFilter tracks the namespaces to be watched by this controller.
 	DiscoveryNamespacesFilter namespace.DiscoveryNamespacesFilter
 }
@@ -99,7 +102,8 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 	})
 
 	c.namespaces = kclient.New[*v1.Namespace](kubeClient)
-
+	// kube-system is not skipped to enable deploying higress in that namespace
+	c.ignoredNamespaces = inject.IgnoredNamespaces.Copy().Delete(constants.KubeSystemNamespace)
 	c.configmaps.AddEventHandler(controllers.FilteredObjectSpecHandler(c.queue.AddObject, func(o controllers.Object) bool {
 		// Add by ingress
 		if o.GetNamespace() != podNs {
@@ -107,7 +111,7 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 		}
 		// End add by ingress
 		// skip special kubernetes system namespaces
-		return !inject.IgnoredNamespaces.Contains(o.GetNamespace())
+		return !c.ignoredNamespaces.Contains(o.GetNamespace())
 	}))
 
 	if c.DiscoveryNamespacesFilter != nil {
@@ -131,7 +135,7 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 				// We are only watching one namespace, and its not this one
 				return false
 			}
-			if inject.IgnoredNamespaces.Contains(o.GetName()) {
+			if c.ignoredNamespaces.Contains(o.GetName()) {
 				// skip special kubernetes system namespaces
 				return false
 			}
@@ -214,7 +218,7 @@ func (nc *NamespaceController) namespaceChange(ns *v1.Namespace) {
 
 func (nc *NamespaceController) syncNamespace(ns string) {
 	// skip special kubernetes system namespaces
-	if inject.IgnoredNamespaces.Contains(ns) {
+	if nc.ignoredNamespaces.Contains(ns) {
 		return
 	}
 
