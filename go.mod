@@ -2,6 +2,15 @@ module istio.io/istio
 
 go 1.24.0
 
+// Client-go does not handle different versions of mergo due to some breaking changes - use the matching version
+replace (
+	github.com/envoyproxy/go-control-plane => github.com/higress-group/go-control-plane v0.0.0-20240729105554-0ab56e249a34
+	github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
+	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
+	istio.io/api => github.com/higress-group/api v0.0.0-20251013075830-5b9a222e72f3
+	istio.io/client-go => github.com/higress-group/client-go v0.0.0-20251013085901-09ed8dc4e748
+)
+
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
