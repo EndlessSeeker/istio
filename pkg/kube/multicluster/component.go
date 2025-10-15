@@ -84,6 +84,10 @@ func (m *Component[T]) clusterDeleted(cluster cluster.ID) {
 	delete(m.clusters, cluster)
 }
 
+func (m *Component[T]) clusterUpdatedInNeed(cluster *Cluster) {
+	// Do Nothing
+}
+
 func (m *Component[T]) HasSynced() bool {
 	for _, c := range m.All() {
 		if !c.HasSynced() {

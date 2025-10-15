@@ -270,6 +270,8 @@ type Controller struct {
 
 	networksHandlerRegistration *mesh.WatcherHandlerRegistration
 	meshHandlerRegistration     *mesh.WatcherHandlerRegistration
+
+	externalNameSvcInstanceMap map[host.Name][]*model.ServiceInstance
 }
 
 // NewController creates a new Kubernetes controller
@@ -311,7 +313,7 @@ func NewController(kubeClient kubelib.Client, options Options) *Controller {
 
 	c.services = kclient.NewFiltered[*v1.Service](kubeClient, kclient.Filter{ObjectFilter: kubeClient.ObjectFilter()})
 
-	registerHandlers(c, c.services, "Services", c.onServiceEvent, nil)
+	registerHandlers[*v1.Service](c, c.services, "Services", c.onServiceEvent, nil)
 
 	// update by ingress
 	//c.endpoints = newEndpointSliceController(c)

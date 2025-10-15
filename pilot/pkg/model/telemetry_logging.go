@@ -309,8 +309,9 @@ func buildFileAccessJSONLogFormat(
 			Format: &core.SubstitutionFormatString_JsonFormat{
 				JsonFormat: jsonLogStruct,
 			},
-			JsonFormatOptions: &core.JsonFormatOptions{SortProperties: false},
-			OmitEmptyValues:   omitEmptyValues,
+			// Modified by ingress
+			//JsonFormatOptions: &core.JsonFormatOptions{SortProperties: false},
+			OmitEmptyValues: omitEmptyValues,
 		},
 	}, formatters
 }
@@ -458,7 +459,8 @@ func FileAccessLogFromMeshConfig(path string, mesh *meshconfig.MeshConfig, skipB
 				Format: &core.SubstitutionFormatString_JsonFormat{
 					JsonFormat: jsonLogStruct,
 				},
-				JsonFormatOptions: &core.JsonFormatOptions{SortProperties: false},
+				// Modified by ingress
+				//JsonFormatOptions: &core.JsonFormatOptions{SortProperties: false},
 			},
 		}
 	default:
@@ -543,7 +545,8 @@ func buildOpenTelemetryAccessLogConfig(proxy *Proxy,
 		}
 	}
 
-	cfg.Formatters = accessLogFormatters(format, labels, skipBuiltInFormatter)
+	// Modified by ingress
+	//cfg.Formatters = accessLogFormatters(format, labels, skipBuiltInFormatter)
 
 	return cfg
 }

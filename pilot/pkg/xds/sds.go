@@ -404,7 +404,8 @@ func toEnvoyTLSSecret(name string, certInfo *credscontroller.CertInfo, proxy *mo
 						ConfigType: &envoytls.PrivateKeyProvider_TypedConfig{
 							TypedConfig: msg,
 						},
-						Fallback: crypto.GetFallback().GetValue(),
+						// TODO wait go-control-plane to support
+						//Fallback: crypto.GetFallback().GetValue(),
 					},
 				},
 			},
@@ -433,7 +434,8 @@ func toEnvoyTLSSecret(name string, certInfo *credscontroller.CertInfo, proxy *mo
 						ConfigType: &envoytls.PrivateKeyProvider_TypedConfig{
 							TypedConfig: msg,
 						},
-						Fallback: qatConf.GetFallback().GetValue(),
+						// TODO wait go-control-plane to support
+						//Fallback: crypto.GetFallback().GetValue(),
 					},
 				},
 			},

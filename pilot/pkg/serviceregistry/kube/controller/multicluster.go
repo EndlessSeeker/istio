@@ -114,9 +114,9 @@ func NewMulticluster(
 		clusterLocal:           clusterLocal,
 		s:                      s,
 	}
-	mc.component = multicluster.BuildMultiClusterComponent(controller, func(cluster *multicluster.Cluster, stop <-chan struct{}) *kubeController {
+	mc.component = multicluster.BuildMultiClusterComponent(controller, func(cluster *multicluster.Cluster) *kubeController {
 		// Updated by ingress
-		//stop := make(chan struct{})
+		stop := make(chan struct{})
 
 		if !shouldWatchServices(cluster.ID) {
 			mc.setupNamespaceController(cluster, stop)
