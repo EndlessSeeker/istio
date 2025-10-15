@@ -151,6 +151,47 @@ type Options struct {
 	StatusWritingEnabled *activenotifier.ActiveNotifier
 
 	KrtDebugger *krt.DebugHandler
+
+	// EndpointMode decides what source to use to get endpoint information
+	EndpointMode EndpointMode
+}
+
+// DetectEndpointMode determines whether to use Endpoints or EndpointSlice based on the
+// feature flag and/or Kubernetes version
+func DetectEndpointMode(kubeClient kubelib.Client) EndpointMode {
+	useEndpointslice, ok := features.EnableEndpointSliceController()
+
+	// we have a client, and flag wasn't set explicitly, auto-detect
+	if kubeClient != nil && !ok && !kubelib.IsLessThanVersion(kubeClient, 21) {
+		useEndpointslice = true
+	}
+
+	if useEndpointslice {
+		return EndpointSliceOnly
+	}
+	return EndpointsOnly
+}
+
+// EndpointMode decides what source to use to get endpoint information
+type EndpointMode int
+
+const (
+	// EndpointsOnly type will use only Kubernetes Endpoints
+	EndpointsOnly EndpointMode = iota
+
+	// EndpointSliceOnly type will use only Kubernetes EndpointSlices
+	EndpointSliceOnly
+)
+
+var EndpointModes = []EndpointMode{EndpointsOnly, EndpointSliceOnly}
+
+var EndpointModeNames = map[EndpointMode]string{
+	EndpointsOnly:     "EndpointsOnly",
+	EndpointSliceOnly: "EndpointSliceOnly",
+}
+
+func (m EndpointMode) String() string {
+	return EndpointModeNames[m]
 }
 
 // kubernetesNode represents a kubernetes node that is reachable externally
@@ -183,7 +224,7 @@ type Controller struct {
 	namespaces kclient.Client[*v1.Namespace]
 	services   kclient.Client[*v1.Service]
 
-	endpoints *endpointSliceController
+	endpoints kubeEndpointsController
 
 	// Used to watch node accessible from remote cluster.
 	// In multi-cluster(shared control plane multi-networks) scenario, ingress gateway service can be of nodePort type.
@@ -228,6 +269,7 @@ type Controller struct {
 	configCluster bool
 
 	networksHandlerRegistration *mesh.WatcherHandlerRegistration
+	meshHandlerRegistration     *mesh.WatcherHandlerRegistration
 }
 
 // NewController creates a new Kubernetes controller
@@ -271,7 +313,17 @@ func NewController(kubeClient kubelib.Client, options Options) *Controller {
 
 	registerHandlers(c, c.services, "Services", c.onServiceEvent, nil)
 
-	c.endpoints = newEndpointSliceController(c)
+	// update by ingress
+	//c.endpoints = newEndpointSliceController(c)
+	switch options.EndpointMode {
+	case EndpointSliceOnly:
+		c.endpoints = newEndpointSliceController(c)
+	default: // nolint: gocritic
+		log.Errorf("unknown endpoints mode: %v", options.EndpointMode)
+		fallthrough
+	case EndpointsOnly:
+		c.endpoints = newEndpointsController(c)
+	}
 
 	// This is for getting the node IPs of a selected set of nodes
 	c.nodes = kclient.NewFiltered[*v1.Node](kubeClient, kclient.Filter{ObjectTransform: kubelib.StripNodeUnusedFields})
@@ -394,6 +446,11 @@ func (c *Controller) Cleanup() error {
 	// Unregister networks handler
 	if c.networksHandlerRegistration != nil {
 		c.opts.MeshNetworksWatcher.DeleteNetworksHandler(c.networksHandlerRegistration)
+	}
+
+	// Unregister mesh handler
+	if c.meshHandlerRegistration != nil {
+		c.opts.MeshWatcher.DeleteMeshHandler(c.meshHandlerRegistration)
 	}
 
 	return nil
@@ -564,6 +621,7 @@ func (c *Controller) onNodeEvent(_, node *v1.Node, event model.Event) error {
 
 	// update all related services
 	if updatedNeeded && c.updateServiceNodePortAddresses() {
+		log.Info("PushRequest generated onNodeEvent")
 		c.opts.XDSUpdater.ConfigUpdate(&model.PushRequest{
 			Full:   true,
 			Reason: model.NewReasonStats(model.ServiceUpdate),
@@ -640,7 +698,7 @@ func (c *Controller) HasSynced() bool {
 func (c *Controller) informersSynced() bool {
 	return c.namespaces.HasSynced() &&
 		c.services.HasSynced() &&
-		c.endpoints.slices.HasSynced() &&
+		c.endpoints.HasSynced() &&
 		c.pods.pods.HasSynced() &&
 		c.nodes.HasSynced() &&
 		c.imports.HasSynced() &&

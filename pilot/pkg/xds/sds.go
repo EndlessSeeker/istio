@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	alifeatures "istio.io/istio/pkg/ali/features"
 	"strconv"
 	"strings"
 	"time"
@@ -172,9 +173,18 @@ func (s *SecretGen) Generate(proxy *model.Proxy, w *model.WatchedResource, req *
 func (s *SecretGen) generate(sr SecretResource, configClusterSecrets, proxyClusterSecrets credscontroller.Controller, proxy *model.Proxy) *discovery.Resource {
 	// Fetch the appropriate cluster's secret, based on the credential type
 	var secretController credscontroller.Controller
+	var err error
 	switch sr.ResourceType {
 	case credentials.KubernetesGatewaySecretType, credentials.KubernetesConfigMapType:
 		secretController = configClusterSecrets
+	case credentials.KubernetesIngressSecretTypeURI:
+		// Added by ingress
+		if secretController, err = s.secrets.ForCluster(sr.Cluster); err != nil {
+			log.Warnf("This is an unknown cluster %s, err %v", sr.Cluster, err)
+			pilotSDSCertificateErrors.Increment()
+			return nil
+		}
+		// End added by ingress
 	default:
 		secretController = proxyClusterSecrets
 	}
@@ -244,6 +254,14 @@ func recordInvalidCertificate(namespace string, name string, resourceName string
 
 // filterAuthorizedResources takes a list of SecretResource and filters out resources that proxy cannot access
 func filterAuthorizedResources(resources []SecretResource, proxy *model.Proxy, secrets credscontroller.Controller) []SecretResource {
+	// Added by ingress
+	// We can not check whether the mse gateway access the target secret resource.
+	// So, we just pass it.
+	if alifeatures.WatchResourcesByNamespaceForPrimaryCluster != "" {
+		return resources
+	}
+	// End added by ingress
+
 	var authzResult *bool
 	var authzError error
 	// isAuthorized is a small wrapper around credscontroller.Authorize so we only call it once instead of each time in the loop
@@ -300,6 +318,14 @@ func filterAuthorizedResources(resources []SecretResource, proxy *model.Proxy, s
 			} else {
 				deniedResources = append(deniedResources, r.Name)
 			}
+			// Added by ingress
+		case credentials.KubernetesIngressSecretType:
+			if isAuthorized() {
+				allowedResources = append(allowedResources, r)
+			} else {
+				deniedResources = append(deniedResources, r.Name)
+			}
+			// End added by ingress
 		case credentials.InvalidSecretType:
 			// Do nothing. We return nothing, and logs for why an invalid resource was generated are handled elsewhere.
 		default:

@@ -21,6 +21,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	alifeatures "istio.io/istio/pkg/ali/features"
+	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/kube/kubetypes"
 	"net/url"
 	"strings"
 
@@ -112,7 +115,7 @@ func (s *Server) initConfigController(args *PilotArgs) error {
 
 		s.addTerminatingStartFunc("ingress status", func(stop <-chan struct{}) error {
 			leaderelection.
-				NewLeaderElection(args.Namespace, args.PodName, leaderelection.IngressController, args.Revision, s.kubeClient).
+				NewLeaderElection(args.Namespace, args.PodName, leaderelection.BuildClusterScopedLeaderElection(leaderelection.IngressController), args.Revision, s.kubeClient).
 				AddRunFunction(func(leaderStop <-chan struct{}) {
 					log.Infof("Starting ingress status writer")
 					ic.SetStatusWrite(true, s.statusManager)
@@ -187,7 +190,7 @@ func (s *Server) initK8SConfigStore(args *PilotArgs) error {
 
 		s.addTerminatingStartFunc("gateway status", func(stop <-chan struct{}) error {
 			leaderelection.
-				NewPerRevisionLeaderElection(args.Namespace, args.PodName, leaderelection.GatewayStatusController, args.Revision, s.kubeClient).
+				NewPerRevisionLeaderElection(args.Namespace, args.PodName, leaderelection.BuildClusterScopedLeaderElection(leaderelection.GatewayStatusController), args.Revision, s.kubeClient).
 				AddRunFunction(func(leaderStop <-chan struct{}) {
 					log.Infof("waiting for gateway status writer activation")
 					<-activatePerRevisionStatusWriterCh
@@ -210,7 +213,7 @@ func (s *Server) initK8SConfigStore(args *PilotArgs) error {
 		if features.EnableGatewayAPIDeploymentController {
 			s.addTerminatingStartFunc("gateway deployment controller", func(stop <-chan struct{}) error {
 				leaderelection.
-					NewPerRevisionLeaderElection(args.Namespace, args.PodName, leaderelection.GatewayDeploymentController, args.Revision, s.kubeClient).
+					NewPerRevisionLeaderElection(args.Namespace, args.PodName, leaderelection.BuildClusterScopedLeaderElection(leaderelection.GatewayDeploymentController), args.Revision, s.kubeClient).
 					AddRunFunction(func(leaderStop <-chan struct{}) {
 						// We can only run this if the Gateway CRD is created
 						if s.kubeClient.CrdWatcher().WaitForCRD(gvr.KubernetesGateway, leaderStop) {
@@ -314,7 +317,8 @@ func (s *Server) initConfigSources(args *PilotArgs) (err error) {
 			if err != nil {
 				return fmt.Errorf("failed to dial XDS %s %v", configSource.Address, err)
 			}
-			store := memory.Make(collections.Pilot)
+			// Changed by ingress
+			store := memory.MakeSkipValidation(collections.Pilot)
 			// TODO: enable namespace filter for memory controller
 			configController := memory.NewController(store)
 			configController.RegisterHasSyncedHandler(xdsMCP.HasSynced)
@@ -375,6 +379,24 @@ func (s *Server) makeKubeConfigController(args *PilotArgs) *crdclient.Client {
 		Identifier:   "crd-controller",
 		KrtDebugger:  args.KrtDebugger,
 	}
+
+	// Add by ingress
+	if alifeatures.WatchResourcesByNamespaceForPrimaryCluster != "" {
+		filtersGVK := map[config.GroupVersionKind]kubetypes.Filter{}
+		schemas := collections.Pilot
+		if features.EnableGatewayAPI {
+			schemas = collections.PilotGatewayAPI()
+		}
+
+		for _, schema := range schemas.All() {
+			filtersGVK[schema.GroupVersionKind()] = kubetypes.Filter{
+				LabelSelector: alifeatures.WatchResourcesByLabelForPrimaryCluster,
+				Namespace:     alifeatures.WatchResourcesByNamespaceForPrimaryCluster,
+			}
+		}
+		opts.FiltersByGVK = filtersGVK
+	}
+	// End Add by ingress
 
 	schemas := collections.Pilot
 	if features.EnableGatewayAPI {

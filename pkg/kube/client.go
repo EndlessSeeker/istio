@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -104,7 +105,19 @@ import (
 const (
 	defaultLocalAddress = "localhost"
 	RunningStatus       = "status.phase=Running"
+
+	// Added by ingress
+	resyncInterval = 0
+	// End added by ingress
 )
+
+// InformerOptions for initialization for informers.
+type InformerOptions struct {
+	// List and watch resources by specified namespace.
+	WatchedNamespace string
+	// List and watch resources by specified label.
+	Label string
+}
 
 // Client is a helper for common Kubernetes client operations. This contains various different kubernetes
 // clients using a shared config. It is expected that all of Istiod can share the same set of clients and
@@ -696,6 +709,28 @@ func (c *client) GetKubernetesVersion() (*kubeVersion.Info, error) {
 
 func (c *client) ClusterID() cluster.ID {
 	return c.clusterID
+}
+
+type reflectInformerSync interface {
+	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
+}
+
+func fastWaitForCacheSyncOld(stop <-chan struct{}, informerFactory reflectInformerSync) {
+	returnImmediately := make(chan struct{})
+	close(returnImmediately)
+	_ = wait.PollUntilContextTimeout(context.Background(), time.Microsecond*100, wait.ForeverTestTimeout, true, func(context.Context) (bool, error) {
+		select {
+		case <-stop:
+			return false, fmt.Errorf("channel closed")
+		default:
+		}
+		for _, synced := range informerFactory.WaitForCacheSync(returnImmediately) {
+			if !synced {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 // Wait for cache sync immediately, rather than with 100ms delay which slows tests

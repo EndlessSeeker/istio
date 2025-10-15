@@ -6,7 +6,7 @@ import (
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
+	mseingress2 "istio.io/istio/pilot/pkg/networking/core/mseingress"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 )
 
@@ -19,10 +19,10 @@ var (
 	}
 
 	GlobalLocalRateLimitFilter = &httppb.HttpFilter{
-		Name: mseingress.LocalRateLimitFilterName,
+		Name: mseingress2.LocalRateLimitFilterName,
 		ConfigType: &httppb.HttpFilter_TypedConfig{
 			TypedConfig: protoconv.MessageToAny(&lrlhttppb.LocalRateLimit{
-				StatPrefix: mseingress.DefaultLocalRateLimitStatPrefix,
+				StatPrefix: mseingress2.DefaultLocalRateLimitStatPrefix,
 			}),
 		},
 	}
@@ -62,7 +62,7 @@ func (b *Builder) addRBACFilterWithNeed(cur []*httppb.HttpFilter) *httppb.HttpFi
 	hasRBAC := false
 	httpFilters := b.push.GetHTTPFiltersFromEnvoyFilter(b.proxy)
 	for _, filter := range httpFilters {
-		if mseingress.HasRBACFilter(filter) {
+		if mseingress2.HasRBACFilter(filter) {
 			hasRBAC = true
 			break
 		}
@@ -89,7 +89,7 @@ func (b *Builder) addLocalRateLimitWithNeed(cur []*httppb.HttpFilter) *httppb.Ht
 	hasLocalRateLimit := false
 	httpFilters := b.push.GetHTTPFiltersFromEnvoyFilter(b.proxy)
 	for _, filter := range httpFilters {
-		if mseingress.GetLocalRateLimitFilter(filter) != nil {
+		if mseingress2.GetLocalRateLimitFilter(filter) != nil {
 			hasLocalRateLimit = true
 			break
 		}
@@ -99,7 +99,7 @@ func (b *Builder) addLocalRateLimitWithNeed(cur []*httppb.HttpFilter) *httppb.Ht
 	}
 
 	for _, filter := range cur {
-		if filter.Name == mseingress.LocalRateLimitFilterName {
+		if filter.Name == mseingress2.LocalRateLimitFilterName {
 			hasLocalRateLimit = true
 			break
 		}

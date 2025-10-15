@@ -15,6 +15,8 @@
 package core
 
 import (
+	"github.com/golang/protobuf/ptypes/wrappers"
+	alifeatures "istio.io/istio/pkg/ali/features"
 	"math"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -424,6 +426,7 @@ func setWarmup(warmup *networking.WarmupConfiguration) *cluster.Cluster_SlowStar
 
 // getDefaultCircuitBreakerThresholds returns a copy of the default circuit breaker thresholds for the given traffic direction.
 func getDefaultCircuitBreakerThresholds() *cluster.CircuitBreakers_Thresholds {
+	// Modified by ingress
 	return &cluster.CircuitBreakers_Thresholds{
 		// DefaultMaxRetries specifies the default for the Envoy circuit breaker parameter max_retries. This
 		// defines the maximum number of parallel retries a given Envoy will allow to the upstream cluster. Envoy defaults
@@ -431,11 +434,12 @@ func getDefaultCircuitBreakerThresholds() *cluster.CircuitBreakers_Thresholds {
 		// where multiple endpoints in a cluster are terminated. In these scenarios the circuit breaker can kick
 		// in before Pilot is able to deliver an updated endpoint list to Envoy, leading to client-facing 503s.
 		MaxRetries:         &wrapperspb.UInt32Value{Value: math.MaxUint32},
-		MaxRequests:        &wrapperspb.UInt32Value{Value: math.MaxUint32},
-		MaxConnections:     &wrapperspb.UInt32Value{Value: math.MaxUint32},
-		MaxPendingRequests: &wrapperspb.UInt32Value{Value: math.MaxUint32},
+		MaxRequests:        &wrappers.UInt32Value{Value: uint32(alifeatures.DefaultUpstreamConcurrencyThreshold)},
+		MaxConnections:     &wrappers.UInt32Value{Value: uint32(alifeatures.DefaultUpstreamConcurrencyThreshold)},
+		MaxPendingRequests: &wrappers.UInt32Value{Value: uint32(alifeatures.DefaultUpstreamConcurrencyThreshold)},
 		TrackRemaining:     true,
 	}
+	// End modified by ingress
 }
 
 // FIXME: there isn't a way to distinguish between unset values and zero values

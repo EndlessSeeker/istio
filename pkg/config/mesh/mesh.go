@@ -15,7 +15,10 @@
 package mesh
 
 import (
+	"encoding/json"
 	"fmt"
+	alifeatures "istio.io/istio/pkg/ali/features"
+	"istio.io/istio/pkg/util/gogoprotomarshal"
 	"os"
 	"time"
 
@@ -33,6 +36,26 @@ import (
 	"istio.io/istio/pkg/util/protomarshal"
 	"istio.io/istio/pkg/util/sets"
 )
+
+// Added by ingress
+var defaultServerCipherSuites = []string{
+	"ECDHE-ECDSA-AES128-GCM-SHA256",
+	"ECDHE-ECDSA-CHACHA20-POLY1305",
+	"ECDHE-RSA-AES128-GCM-SHA256",
+	"ECDHE-RSA-CHACHA20-POLY1305",
+	"ECDHE-ECDSA-AES128-SHA",
+	"ECDHE-RSA-AES128-SHA",
+	"AES128-GCM-SHA256",
+	"AES128-SHA",
+	"ECDHE-ECDSA-AES256-GCM-SHA384",
+	"ECDHE-RSA-AES256-GCM-SHA384",
+	"ECDHE-ECDSA-AES256-SHA",
+	"ECDHE-RSA-AES256-SHA",
+	"AES256-GCM-SHA384",
+	"AES256-SHA",
+}
+
+// End added by ingress
 
 // DefaultProxyConfig for individual proxies
 func DefaultProxyConfig() *meshconfig.ProxyConfig {
@@ -65,9 +88,32 @@ func DefaultMeshNetworks() *meshconfig.MeshNetworks {
 func DefaultMeshConfig() *meshconfig.MeshConfig {
 	proxyConfig := DefaultProxyConfig()
 
+	var configSources []*meshconfig.ConfigSource
+	if alifeatures.DefaultConfigSources != "" {
+		var sources []interface{}
+		if err := json.Unmarshal([]byte(alifeatures.DefaultConfigSources), &sources); err != nil {
+			log.Warnf("invalid config sources %s: %v", alifeatures.DefaultConfigSources, err)
+			goto done
+		}
+		for _, source := range sources {
+			configSource := &meshconfig.ConfigSource{}
+			jsStr, err := json.Marshal(source)
+			if err != nil {
+				log.Warnf("marshal source %s failed: %v", source, err)
+				goto done
+			}
+			err = gogoprotomarshal.ApplyJSON(string(jsStr), configSource)
+			if err != nil {
+				log.Warnf("apply json %s to ConfigSource proto failed: %v", jsStr, err)
+			}
+			configSources = append(configSources, configSource)
+		}
+	}
+done:
 	// Defaults matching the standard install
 	// order matches the generated mesh config.
 	return &meshconfig.MeshConfig{
+		ConfigSources:               configSources,
 		EnableTracing:               true,
 		AccessLogFile:               "",
 		AccessLogEncoding:           meshconfig.MeshConfig_TEXT,
@@ -127,6 +173,7 @@ func DefaultMeshConfig() *meshconfig.MeshConfig {
 				},
 			},
 		},
+		MseIngressGlobalConfig: &meshconfig.MSEIngressGlobalConfig{},
 	}
 }
 
@@ -198,12 +245,14 @@ func ApplyMeshConfig(yaml string, defaultConfig *meshconfig.MeshConfig) (*meshco
 	prevDefaultProvider := defaultConfig.DefaultProviders
 	prevExtensionProviders := defaultConfig.ExtensionProviders
 	prevTrustDomainAliases := defaultConfig.TrustDomainAliases
+	prevConfigSources := defaultConfig.ConfigSources
 
 	defaultConfig.DefaultConfig = DefaultProxyConfig()
 	if err := protomarshal.ApplyYAML(yaml, defaultConfig); err != nil {
 		return nil, multierror.Prefix(err, "failed to convert to proto.")
 	}
 	defaultConfig.DefaultConfig = prevProxyConfig
+	defaultConfig.ConfigSources = append(defaultConfig.ConfigSources, prevConfigSources...)
 
 	raw, err := toMap(yaml)
 	if err != nil {
@@ -250,6 +299,22 @@ func ApplyMeshConfig(yaml string, defaultConfig *meshconfig.MeshConfig) (*meshco
 	}
 
 	defaultConfig.TrustDomainAliases = sets.SortedList(sets.New(append(defaultConfig.TrustDomainAliases, prevTrustDomainAliases...)...))
+
+	// Added by ingress
+	if defaultConfig.MseIngressGlobalConfig != nil {
+		global := defaultConfig.MseIngressGlobalConfig
+		// Add default tls settings for back compatibility.
+		if global.TlsMinProtocolVersion == "" {
+			global.TlsMinProtocolVersion = "TLSv1.0"
+		}
+		if global.TlsMaxProtocolVersion == "" {
+			global.TlsMaxProtocolVersion = "TLSv1.3"
+		}
+		if len(global.TlsCipherSuites) == 0 {
+			global.TlsCipherSuites = defaultServerCipherSuites
+		}
+	}
+	// End added by ingress
 
 	warn, err := agent.ValidateMeshConfig(defaultConfig)
 	if err != nil {

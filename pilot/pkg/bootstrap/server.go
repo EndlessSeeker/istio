@@ -52,6 +52,7 @@ import (
 	sec_model "istio.io/istio/pilot/pkg/security/model"
 	"istio.io/istio/pilot/pkg/server"
 	"istio.io/istio/pilot/pkg/serviceregistry/aggregate"
+	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
 	"istio.io/istio/pilot/pkg/serviceregistry/provider"
 	"istio.io/istio/pilot/pkg/serviceregistry/serviceentry"
 	"istio.io/istio/pilot/pkg/status"
@@ -283,6 +284,9 @@ func NewServer(args *PilotArgs, initFuncs ...func(*Server)) (*Server, error) {
 	if err := s.initKubeClient(args); err != nil {
 		return nil, fmt.Errorf("error initializing kube client: %v", err)
 	}
+
+	// used for both initKubeRegistry and initClusterRegistries
+	args.RegistryOptions.KubeOptions.EndpointMode = kubecontroller.DetectEndpointMode(s.kubeClient)
 
 	s.initMeshConfiguration(args, s.fileWatcher)
 	// Setup Kubernetes watch filters
@@ -895,6 +899,7 @@ func (s *Server) initRegistryEventHandlers() {
 			ConfigsUpdated: sets.New(model.ConfigKey{Kind: kind.ServiceEntry, Name: string(curr.Hostname), Namespace: curr.Attributes.Namespace}),
 			Reason:         model.NewReasonStats(model.ServiceUpdate),
 		}
+		log.Infof("PushRequest generated in serviceHandler: %#v", pushReq)
 		s.XDSServer.ConfigUpdate(pushReq)
 	}
 	s.ServiceController().AppendServiceHandler(serviceHandler)
@@ -912,6 +917,7 @@ func (s *Server) initRegistryEventHandlers() {
 				ConfigsUpdated: sets.New(model.ConfigKey{Kind: gvk.MustToKind(curr.GroupVersionKind), Name: curr.Name, Namespace: curr.Namespace}),
 				Reason:         model.NewReasonStats(model.ConfigUpdate),
 			}
+			log.Infof("PushRequest generated in configHandler: %#v", pushReq)
 			s.XDSServer.ConfigUpdate(pushReq)
 		}
 		schemas := collections.Pilot.All()

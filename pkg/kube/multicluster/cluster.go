@@ -44,6 +44,12 @@ type Cluster struct {
 	initialSync *atomic.Bool
 	// initialSyncTimeout is set when RunAndWait timed out
 	initialSyncTimeout *atomic.Bool
+
+	// Added by ingress
+	RawClusterID  string
+	ClusterInfo   ClusterInfo
+	RawKubeConfig []byte
+	// End added by ingress
 }
 
 type ACTION int

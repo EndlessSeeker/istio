@@ -16,6 +16,7 @@ package envoyfilter
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/xds"
 	"strings"
 
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
@@ -741,8 +742,9 @@ func networkFilterMatch(filter *listener.Filter, cp *model.EnvoyFilterConfigPatc
 	if !hasNetworkFilterMatch(cp) {
 		return true
 	}
-
-	return cp.Match.GetListener().FilterChain.Filter.Name == filter.Name
+	// Modified by ingress
+	return nameMatches(cp.Match.GetListener().FilterChain.Filter.Name, filter.Name)
+	// End modified by ingress
 }
 
 func hasHTTPFilterMatch(lp *model.EnvoyFilterConfigPatchWrapper) bool {
@@ -776,3 +778,11 @@ func commonConditionMatch(patchContext networking.EnvoyFilter_PatchContext,
 ) bool {
 	return patchContextMatch(patchContext, lp)
 }
+
+// Added by ingress
+// nameMatches compares two filter names, matching even if a deprecated filter name is used.
+func nameMatches(matchName, filterName string) bool {
+	return matchName == filterName || matchName == xds.DeprecatedFilterNames[filterName]
+}
+
+// End added by ingress

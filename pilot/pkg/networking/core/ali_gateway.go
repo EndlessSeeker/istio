@@ -1,4 +1,4 @@
-package v1alpha3
+package core
 
 import (
 	"strconv"

@@ -125,6 +125,7 @@ func (configgen *ConfigGeneratorImpl) BuildListeners(node *model.Proxy,
 
 func BuildListenerTLSContext(serverTLSSettings *networking.ServerTLSSettings,
 	proxy *model.Proxy, push *model.PushContext, transportProtocol istionetworking.TransportProtocol, gatewayTCPServerWithTerminatingTLS bool,
+	extraOpts *buildListenerFilterChainExtraOpts,
 ) *auth.DownstreamTlsContext {
 	alpnByTransport := util.ALPNHttp
 	if transportProtocol == istionetworking.TransportProtocolQUIC {
@@ -137,6 +138,8 @@ func BuildListenerTLSContext(serverTLSSettings *networking.ServerTLSSettings,
 		} else {
 			alpnByTransport = util.ALPNDownstreamWithMxc
 		}
+	} else if shouldDisableH2(extraOpts) {
+		alpnByTransport = util.ALPNH11Only
 	}
 
 	ctx := &auth.DownstreamTlsContext{
@@ -183,11 +186,17 @@ func BuildListenerTLSContext(serverTLSSettings *networking.ServerTLSSettings,
 			[]string{}, validateClient, serverTLSSettings.TlsCertificates)
 	}
 
-	if isSimpleOrMutual(serverTLSSettings.Mode) {
-		// If Mesh TLSDefaults are set, use them.
-		applyDownstreamTLSDefaults(push.Mesh.GetTlsDefaults(), ctx.CommonTlsContext)
-		applyServerTLSSettings(serverTLSSettings, ctx.CommonTlsContext)
-	}
+	// Delete by ingress
+	//if isSimpleOrMutual(serverTLSSettings.Mode) {
+	//	// If Mesh TLSDefaults are set, use them.
+	//	applyDownstreamTLSDefaults(mesh.GetTlsDefaults(), ctx.CommonTlsContext)
+	//	applyServerTLSSettings(serverTLSSettings, ctx.CommonTlsContext)
+	//}
+	// End deleted by ingress
+
+	// Add by ingress
+	ctx.CommonTlsContext.TlsParams = applyTls(serverTLSSettings, extraOpts)
+	// End by ingress
 
 	// Compliance for Envoy TLS downstreams.
 	authnmodel.EnforceCompliance(ctx.CommonTlsContext)
@@ -1066,6 +1075,10 @@ type gatewayListenerOpts struct {
 	port              int
 	filterChainOpts   []*filterChainOpts
 	needPROXYProtocol bool
+
+	// Added by ingress
+	enableProxyProtocol bool
+	// End added by ingress
 }
 
 // outboundListenerOpts are the options to build an outbound listener
@@ -1091,6 +1104,12 @@ func buildGatewayListener(opts gatewayListenerOpts, transport istionetworking.Tr
 	if opts.needPROXYProtocol {
 		listenerFilters = append(listenerFilters, xdsfilters.ProxyProtocol)
 	}
+
+	// Added by ingress
+	if transport == istionetworking.TransportProtocolTCP && opts.enableProxyProtocol {
+		listenerFilters = append(listenerFilters, xdsfilters.ProxyProtocolInspector)
+	}
+	// End added by ingress
 
 	// add a TLS inspector if we need to detect ServerName or ALPN
 	// (this is not applicable for QUIC listeners)

@@ -67,6 +67,8 @@ type Informer[T controllers.Object] interface {
 	// It is strongly recommended to use the typed variants of this with NewIndex; this is needed to workaround Go type limitations.
 	// If an index with the same name already exists, it is returned.
 	Index(name string, extract func(o T) []string) RawIndexer
+	// SetWatchErrorHandler should be call if store has started
+	SetWatchErrorHandler(func(r *cache.Reflector, err error)) error
 }
 
 // RawIndexer is an internal-ish interface for indexes. Strongly recommended to use NewIndex.

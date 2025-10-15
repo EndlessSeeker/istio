@@ -17,13 +17,14 @@ package xds
 import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pilot/pkg/networking/core"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	alifeatures "istio.io/istio/pkg/ali/features"
 	"istio.io/istio/pkg/config/schema/kind"
 )
 
 type SrdsGenerator struct {
-	Server *DiscoveryServer
+	ConfigGenerator core.ConfigGenerator
 }
 
 var _ model.XdsResourceGenerator = &SrdsGenerator{}
@@ -70,7 +71,7 @@ func (s SrdsGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource, re
 		return nil, model.DefaultXdsLogDetails, nil
 	}
 
-	scopedRoutes := s.Server.ConfigGenerator.BuildScopedRoutes(proxy, req.Push)
+	scopedRoutes := s.ConfigGenerator.BuildScopedRoutes(proxy, req.Push)
 	resources := model.Resources{}
 	for _, sr := range scopedRoutes {
 		resources = append(resources, &discovery.Resource{

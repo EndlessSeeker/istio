@@ -15,7 +15,9 @@
 package wasm
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +31,8 @@ import (
 	networkwasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/wasm/v3"
 	wasmextensions "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-version"
+	"github.com/tetratelabs/wazero"
 	anypb "google.golang.org/protobuf/types/known/anypb"
 
 	"istio.io/istio/pkg/bootstrap"
@@ -36,6 +40,16 @@ import (
 	"istio.io/istio/pkg/util/istiomultierror"
 	"istio.io/istio/pkg/util/protomarshal"
 )
+
+// Added by Ingress
+const (
+	wamrRuntime       = "envoy.wasm.runtime.wamr"
+	wamrAotPrefix     = "wamr-aot-"
+	wamrAot           = "wamr-aot"
+	wamrAotMaxVersion = "2.1.0"
+)
+
+// End added by Ingress
 
 var (
 	allowHTTPTypedConfig = &anypb.Any{
@@ -123,41 +137,49 @@ func MaybeConvertWasmExtensionConfig(resources []*anypb.Any, cache Cache) error 
 			if wasmHTTPConfig != nil {
 				newExtensionConfig, err := convertHTTPWasmConfigFromRemoteToLocal(extConfig, wasmHTTPConfig, cache)
 				if err != nil {
-					failOpen := httpWasmFailOpen(wasmHTTPConfig)
-					rbacFilter := "deny"
-					if failOpen {
-						rbacFilter = "allow"
-					}
-					wasmLog.Errorf("error in converting the wasm config to local: %v. applying %s RBAC filter", err, rbacFilter)
-					// Use NOOP filter because the download failed.
-					// nolint: staticcheck // FailOpen deprecated
-					newExtensionConfig, err = createHTTPDefaultFilter(extConfig.GetName(), failOpen)
-					if err != nil {
-						// If the fallback is failing, send the Nack regardless of fail_open.
-						err = fmt.Errorf("failed to create allow-all filter as a fallback of %s Wasm Module: %w", extConfig.GetName(), err)
-						convertErrs[i] = err
-						return
-					}
+					// Modify by ingress
+					//failOpen := httpWasmFailOpen(wasmHTTPConfig)
+					//rbacFilter := "deny"
+					//if failOpen {
+					//	rbacFilter = "allow"
+					//}
+					//wasmLog.Errorf("error in converting the wasm config to local: %v. applying %s RBAC filter", err, rbacFilter)
+					//// Use NOOP filter because the download failed.
+					//// nolint: staticcheck // FailOpen deprecated
+					//newExtensionConfig, err = createHTTPDefaultFilter(extConfig.GetName(), failOpen)
+					//if err != nil {
+					//	// If the fallback is failing, send the Nack regardless of fail_open.
+					//	err = fmt.Errorf("failed to create allow-all filter as a fallback of %s Wasm Module: %w", extConfig.GetName(), err)
+					//	convertErrs[i] = err
+					//	return
+					//}
+					convertErrs[i] = err
+					return
+					// End modified by ingress
 				}
 				resources[i] = newExtensionConfig
 			} else {
 				newExtensionConfig, err := convertNetworkWasmConfigFromRemoteToLocal(extConfig, wasmNetworkConfig, cache)
 				if err != nil {
-					failOpen := networkWasmFailOpen(wasmNetworkConfig)
-					rbacFilter := "deny"
-					if failOpen {
-						rbacFilter = "allow"
-					}
-					wasmLog.Errorf("error in converting the wasm config to local: %v. applying %s RBAC filter", err, rbacFilter)
-
-					// Use NOOP filter because the download failed.
-					newExtensionConfig, err = createNetworkDefaultFilter(extConfig.GetName(), failOpen)
-					if err != nil {
-						// If the fallback is failing, send the Nack regardless of fail_open.
-						err = fmt.Errorf("failed to create allow-all filter as a fallback of %s Wasm Module: %w", extConfig.GetName(), err)
-						convertErrs[i] = err
-						return
-					}
+					// Modify by ingress
+					//failOpen := networkWasmFailOpen(wasmNetworkConfig)
+					//rbacFilter := "deny"
+					//if failOpen {
+					//	rbacFilter = "allow"
+					//}
+					//wasmLog.Errorf("error in converting the wasm config to local: %v. applying %s RBAC filter", err, rbacFilter)
+					//
+					//// Use NOOP filter because the download failed.
+					//newExtensionConfig, err = createNetworkDefaultFilter(extConfig.GetName(), failOpen)
+					//if err != nil {
+					//	// If the fallback is failing, send the Nack regardless of fail_open.
+					//	err = fmt.Errorf("failed to create allow-all filter as a fallback of %s Wasm Module: %w", extConfig.GetName(), err)
+					//	convertErrs[i] = err
+					//	return
+					//}
+					convertErrs[i] = err
+					return
+					// End modified by ingress
 				}
 				resources[i] = newExtensionConfig
 			}
@@ -414,3 +436,41 @@ func rewriteVMConfig(resourceName string, vm *wasmextensions.VmConfig, status *s
 	}
 	return nil
 }
+
+// Added by Ingress
+func containsWamrAotInCustomSection(wasmModulePath string) bool {
+	wasmBinary, err := os.ReadFile(wasmModulePath)
+	if err != nil {
+		wasmLog.Debugf("WASM module not found: %v\n", err)
+		return false
+	}
+	ctx := context.Background()
+	// Create Runtime
+	r := wazero.NewRuntime(ctx)
+	defer r.Close(ctx)
+	// Compile Module
+	compiledModule, err := r.CompileModule(ctx, wasmBinary)
+	if err != nil {
+		wasmLog.Debugf("Failed to compile WASM module: %v\n", err)
+		return false
+	}
+	// Get Wasm Custom Sections
+	sections := compiledModule.CustomSections()
+	for _, section := range sections {
+		if strings.HasPrefix(section.Name(), wamrAotPrefix) {
+			versionPart := strings.TrimPrefix(section.Name(), wamrAotPrefix)
+			v1, err := version.NewVersion(versionPart)
+			if err != nil {
+				wasmLog.Debugf("Failed to parse version: %v\n", err)
+				return false
+			}
+			maxVersion, _ := version.NewVersion(wamrAotMaxVersion)
+			return v1.LessThan(maxVersion)
+		} else if section.Name() == wamrAot {
+			return true
+		}
+	}
+	return false
+}
+
+// End added by Ingress

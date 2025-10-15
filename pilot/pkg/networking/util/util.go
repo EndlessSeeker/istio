@@ -92,6 +92,12 @@ const (
 	AlpnOverrideMetadataKey = "alpn_override"
 )
 
+// Added by ingress
+// ALPNH11Only advertises that Proxy is going to talking http 1.1.
+var ALPNH11Only = []string{"http/1.1"}
+
+var regexEngine = &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}}
+
 // ALPNH2Only advertises that Proxy is going to use HTTP/2 when talking to the cluster.
 var ALPNH2Only = pm.ALPNH2Only
 
@@ -125,6 +131,9 @@ var ALPNDownstreamWithMxc = []string{"istio-peer-exchange", "h2", "http/1.1"}
 
 // ALPNDownstream advertises that Proxy is going to talk either http2 or http 1.1.
 var ALPNDownstream = []string{"h2", "http/1.1"}
+
+// RegexEngine is the default google RE2 regex engine.
+var RegexEngine = &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}}
 
 // ConvertAddressToCidr converts from string to CIDR proto
 func ConvertAddressToCidr(addr string) *core.CidrRange {
@@ -552,7 +561,8 @@ func ConvertToEnvoyMatch(in *networking.StringMatch) *matcher.StringMatcher {
 		return &matcher.StringMatcher{
 			MatchPattern: &matcher.StringMatcher_SafeRegex{
 				SafeRegex: &matcher.RegexMatcher{
-					Regex: m.Regex,
+					EngineType: regexEngine,
+					Regex:      m.Regex,
 				},
 			},
 		}

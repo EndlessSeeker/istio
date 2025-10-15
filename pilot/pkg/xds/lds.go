@@ -80,13 +80,16 @@ func (l LdsGenerator) Generate(proxy *model.Proxy, _ *model.WatchedResource, req
 	if !ldsNeedsPush(proxy, req) {
 		return nil, model.DefaultXdsLogDetails, nil
 	}
-	listeners := l.ConfigGenerator.BuildListeners(proxy, req.Push)
+
 	resources := model.Resources{}
+	// Modified by Higress
+	listeners, logs := l.ConfigGenerator.BuildListeners(proxy, req)
 	for _, c := range listeners {
 		resources = append(resources, &discovery.Resource{
 			Name:     c.Name,
 			Resource: protoconv.MessageToAny(c),
 		})
 	}
-	return resources, model.DefaultXdsLogDetails, nil
+	return resources, logs, nil
+	// End modified by Higress
 }

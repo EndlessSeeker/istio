@@ -17,6 +17,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	"net"
 	"regexp"
 	"sort"
@@ -148,6 +149,10 @@ type Environment struct {
 
 	// Cache for XDS resources.
 	Cache XdsCache
+
+	// Added by ingress
+	IngressStore IngressStore
+	// End added by ingress
 }
 
 func (e *Environment) Mesh() *meshconfig.MeshConfig {
@@ -394,6 +399,10 @@ type Proxy struct {
 	// LastPushContext; the XDS cache depends on knowing the time of the PushContext to determine if a
 	// key is stale or not.
 	LastPushTime time.Time
+
+	// Added by Higress
+	CachedListeners []*listener.Listener
+	// End added by Higress
 }
 
 type WatchedResource = xds.WatchedResource

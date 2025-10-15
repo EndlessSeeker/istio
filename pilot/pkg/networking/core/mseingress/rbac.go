@@ -167,7 +167,7 @@ func doBuildRBAC(policies []model.AuthorizationPolicy) *rbacpb.RBAC {
 	for _, policy := range policies {
 		for _, rule := range policy.Spec.Rules {
 			name := policyName(policy.Name, false)
-			m, _ := authzmodel.New(rule)
+			m, _ := authzmodel.New(policy.NamespacedName(), rule)
 			generated, err := m.Generate(false, false, rbacpb.RBAC_DENY)
 			if err != nil {
 				continue
@@ -188,7 +188,9 @@ func doBuildRBAC(policies []model.AuthorizationPolicy) *rbacpb.RBAC {
 
 func generateRBACFilters(node *model.Proxy, pushContext *model.PushContext) *rbachttppb.RBAC {
 	// First obtain from authorization policy
-	polices := pushContext.AuthzPolicies.ListAuthorizationPolicies(node.ConfigNamespace, node.Metadata.Labels)
+	//polices := pushContext.AuthzPolicies.ListAuthorizationPolicies(node.ConfigNamespace, node.Metadata.Labels)
+	selectionOpts := model.PolicyMatcherForProxy(node)
+	polices := pushContext.AuthzPolicies.ListAuthorizationPolicies(selectionOpts)
 	// In rbac route config, we only can set one action, allow or deny.
 	// We convert existing allow polices to deny polices.
 	for _, policy := range polices.Allow {
