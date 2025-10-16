@@ -198,10 +198,12 @@ func (configgen *ConfigGeneratorImpl) buildGatewayListeners(builder *ListenerBui
 			if serversForPort == nil {
 				continue
 			}
+			// add by ingress
+			cfgCache := getAllGatewayConfigCache(builder)
 
 			switch transport {
 			case istionetworking.TransportProtocolTCP:
-				configgen.buildGatewayTCPBasedFilterChains(builder, p, port, opts, serversForPort, proxyConfig, mergedGateway, tlsHostsByPort)
+				configgen.buildGatewayTCPBasedFilterChains(builder, p, port, opts, serversForPort, proxyConfig, mergedGateway, tlsHostsByPort, cfgCache)
 			case istionetworking.TransportProtocolQUIC:
 				// Currently, we just assume that QUIC is HTTP/3 although that does not
 				// have to be the case (it is just the most common case now, in the future
@@ -254,6 +256,7 @@ func (configgen *ConfigGeneratorImpl) buildGatewayTCPBasedFilterChains(
 	proxyConfig *meshconfig.ProxyConfig,
 	mergedGateway *model.MergedGateway,
 	tlsHostsByPort map[uint32]map[string]string,
+	cfgCache map[string]config.Config,
 ) {
 	// Add network level WASM filters if any configured.
 	wasm := builder.push.WasmPluginsByListenerInfo(builder.node, model.WasmPluginListenerInfo{
@@ -280,10 +283,10 @@ func (configgen *ConfigGeneratorImpl) buildGatewayTCPBasedFilterChains(
 		for _, server := range serversForPort.Servers {
 			if gateway.IsHTTPSServerWithTLSTermination(server) {
 				// Added by ingress
-				gatewayConfig := builder.push.GetGatewayByName(mergedGateway.GatewayNameForServer[server])
+				gatewayConfig := cfgCache[mergedGateway.GatewayNameForServer[server]]
 				log.Debugf("[Listener] Get gatewayConfig %v", gatewayConfig)
 				extraOpts := &buildListenerFilterChainExtraOpts{
-					gatewayConfig: gatewayConfig,
+					gatewayConfig: &gatewayConfig,
 					meshConfig:    builder.push.Mesh,
 					proxyConfig:   proxyConfig,
 				}
@@ -1590,3 +1593,15 @@ func isGatewayMatch(gateway string, gatewayNames []string) bool {
 	}
 	return false
 }
+
+// add by ingress
+func getAllGatewayConfigCache(builder *ListenerBuilder) map[string]config.Config {
+	cfgCache := map[string]config.Config{}
+	for _, cfg := range builder.push.GetGateways() {
+		fullName := fmt.Sprintf("%s/%s", cfg.Namespace, cfg.Name)
+		cfgCache[fullName] = cfg
+	}
+	return cfgCache
+}
+
+// end add by ingress

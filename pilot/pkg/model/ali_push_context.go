@@ -368,3 +368,7 @@ func enableH3(push *PushContext) bool {
 
 	return push.Mesh.MseIngressGlobalConfig.EnableH3
 }
+
+func (ps *PushContext) GetGateways() []config.Config {
+	return ps.gatewayIndex.all
+}
