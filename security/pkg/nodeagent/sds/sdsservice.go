@@ -347,7 +347,8 @@ func toEnvoySecret(s *security.SecretItem, caRootPath string, pkpConf *mesh.Priv
 						ConfigType: &tls.PrivateKeyProvider_TypedConfig{
 							TypedConfig: msg,
 						},
-						Fallback: crypto.GetFallback().GetValue(),
+						//todo: wait go-control-plane to support
+						//Fallback: crypto.GetFallback().GetValue(),
 					},
 				},
 			}
@@ -373,7 +374,8 @@ func toEnvoySecret(s *security.SecretItem, caRootPath string, pkpConf *mesh.Priv
 						ConfigType: &tls.PrivateKeyProvider_TypedConfig{
 							TypedConfig: msg,
 						},
-						Fallback: qatConf.GetFallback().GetValue(),
+						//todo: wait go-control-plane to support
+						//Fallback: qatConf.GetFallback().GetValue(),
 					},
 				},
 			}

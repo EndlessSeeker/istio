@@ -20,8 +20,6 @@ import (
 	routepb "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	uri_template "github.com/envoyproxy/go-control-plane/envoy/extensions/path/match/uri_template/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-
-	"istio.io/istio/pilot/pkg/util/protoconv"
 )
 
 func permissionAny() *rbacpb.Permission {
@@ -110,11 +108,12 @@ func permissionPath(path *matcher.PathMatcher) *rbacpb.Permission {
 
 func permissionPathTemplate(path *uri_template.UriTemplateMatchConfig) *rbacpb.Permission {
 	return &rbacpb.Permission{
-		Rule: &rbacpb.Permission_UriTemplate{
-			UriTemplate: &core.TypedExtensionConfig{
-				Name:        "uri-template",
-				TypedConfig: protoconv.MessageToAny(path),
-			},
-		},
+		//TODO: wait go-control-plane to support
+		//Rule: &rbacpb.Permission_UriTemplate{
+		//	UriTemplate: &core.TypedExtensionConfig{
+		//		Name:        "uri-template",
+		//		TypedConfig: protoconv.MessageToAny(path),
+		//	},
+		//},
 	}
 }

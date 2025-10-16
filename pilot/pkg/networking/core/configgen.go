@@ -27,12 +27,10 @@ import (
 
 // ConfigGenerator represents the interfaces to be implemented by code that generates xDS responses
 type ConfigGenerator interface {
-	// Modified by Higress
 	// BuildListeners returns the list of inbound/outbound listeners for the given proxy. This is the LDS output
 	// Internally, the computation will be optimized to ensure that listeners are computed only
 	// once and shared across multiple invocations of this function.
-	BuildListeners(node *model.Proxy, req *model.PushRequest) ([]*listener.Listener, model.XdsLogDetails)
-	// End modified by Higress
+	BuildListeners(node *model.Proxy, req *model.PushContext) []*listener.Listener
 
 	// BuildClusters returns the list of clusters for the given proxy. This is the CDS output
 	BuildClusters(node *model.Proxy, req *model.PushRequest) ([]*discovery.Resource, model.XdsLogDetails)

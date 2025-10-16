@@ -74,27 +74,28 @@ func MetadataListValueMatcher(filter string, keys []string, value *matcher.Value
 		Filter: filter,
 		Path:   paths,
 	}
-	if useExtendedJwt {
-		out.Value = &matcher.ValueMatcher{
-			MatchPattern: &matcher.ValueMatcher_OrMatch{
-				OrMatch: &matcher.OrMatcher{
-					ValueMatchers: []*matcher.ValueMatcher{
-						{
-							MatchPattern: &matcher.ValueMatcher_ListMatch{
-								ListMatch: listMatcher,
-							},
-						},
-						value,
-					},
-				},
-			},
-		}
-	} else {
-		out.Value = &matcher.ValueMatcher{
-			MatchPattern: &matcher.ValueMatcher_ListMatch{
-				ListMatch: listMatcher,
-			},
-		}
+	//TODO wait go-control-plane to support
+	//if useExtendedJwt {
+	//	out.Value = &matcher.ValueMatcher{
+	//		MatchPattern: &matcher.ValueMatcher_OrMatch{
+	//			OrMatch: &matcher.OrMatcher{
+	//				ValueMatchers: []*matcher.ValueMatcher{
+	//					{
+	//						MatchPattern: &matcher.ValueMatcher_ListMatch{
+	//							ListMatch: listMatcher,
+	//						},
+	//					},
+	//					value,
+	//				},
+	//			},
+	//		},
+	//	}
+	//} else {
+	out.Value = &matcher.ValueMatcher{
+		MatchPattern: &matcher.ValueMatcher_ListMatch{
+			ListMatch: listMatcher,
+		},
 	}
+	//}
 	return out
 }

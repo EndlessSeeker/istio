@@ -167,21 +167,22 @@ func (p *WasmPluginWrapper) buildPluginConfig(proxy *Proxy) *wasmextensions.Plug
 		Vm:            buildVMConfig(datasource, p.ResourceVersion, plugin),
 	}
 
+	// todo: wait go-control-plane to support
 	// FailOpen is deprecated in 1.25, remove this once v1.25 is EOL.
-	if proxy.VersionGreaterOrEqual(&IstioVersion{Major: 1, Minor: 25, Patch: 0}) {
-		switch plugin.FailStrategy {
-		case extensions.FailStrategy_FAIL_OPEN:
-			wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_OPEN
-		case extensions.FailStrategy_FAIL_CLOSE:
-			wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_CLOSED
-		case extensions.FailStrategy_FAIL_RELOAD:
-			wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_RELOAD
-		}
-		// TODO: support more failure policies
-	} else {
-		// nolint: staticcheck // FailOpen deprecated in 1.25
-		wasmConfig.FailOpen = plugin.FailStrategy == extensions.FailStrategy_FAIL_OPEN
-	}
+	//if proxy.VersionGreaterOrEqual(&IstioVersion{Major: 1, Minor: 25, Patch: 0}) {
+	//	switch plugin.FailStrategy {
+	//	case extensions.FailStrategy_FAIL_OPEN:
+	//		wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_OPEN
+	//	case extensions.FailStrategy_FAIL_CLOSE:
+	//		wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_CLOSED
+	//	case extensions.FailStrategy_FAIL_RELOAD:
+	//		wasmConfig.FailurePolicy = wasmextensions.FailurePolicy_FAIL_RELOAD
+	//	}
+	//	// TODO: support more failure policies
+	//} else {
+	//	// nolint: staticcheck // FailOpen deprecated in 1.25
+	//	wasmConfig.FailOpen = plugin.FailStrategy == extensions.FailStrategy_FAIL_OPEN
+	//}
 
 	return wasmConfig
 }

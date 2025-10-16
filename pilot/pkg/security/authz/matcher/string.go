@@ -44,11 +44,12 @@ func OrMatcher(matchers []*matcher.ValueMatcher) *matcher.ValueMatcher {
 		return matchers[0]
 	}
 	return &matcher.ValueMatcher{
-		MatchPattern: &matcher.ValueMatcher_OrMatch{
-			OrMatch: &matcher.OrMatcher{
-				ValueMatchers: matchers,
-			},
-		},
+		// TODO wait go-control-plane to support
+		//MatchPattern: &matcher.ValueMatcher_OrMatch{
+		//	OrMatch: &matcher.OrMatcher{
+		//		ValueMatchers: matchers,
+		//	},
+		//},
 	}
 }
 

@@ -9,6 +9,7 @@ replace (
 	github.com/envoyproxy/go-control-plane/envoy => github.com/higress-group/go-control-plane/envoy v0.0.0-20251016030003-90eca0228178
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
+	google.golang.org/grpc => google.golang.org/grpc v1.64.0
 	istio.io/api => github.com/higress-group/api v0.0.0-20251013075830-5b9a222e72f3
 	istio.io/client-go => github.com/higress-group/client-go v0.0.0-20251013085901-09ed8dc4e748
 )
@@ -218,13 +219,11 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.8.0 // indirect
-	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vbatts/tar-split v0.12.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
-	github.com/zeebo/errs v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
