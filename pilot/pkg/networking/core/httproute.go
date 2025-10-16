@@ -96,8 +96,7 @@ func (configgen *ConfigGeneratorImpl) BuildHTTPRoutes(
 	case model.Router:
 		// Modified by ingress
 		vsCache := make(map[int][]virtualServiceContext)
-		envoyfilterKeys := efw.Key()
-
+		envoyfilterKeys := efw.Keys()
 		for _, routeName := range routeNames {
 			rc, cached := configgen.buildGatewayHTTPRouteConfig(node, req, routeName, vsCache, efw, envoyfilterKeys)
 			if cached && !features.EnableUnsafeAssertions {

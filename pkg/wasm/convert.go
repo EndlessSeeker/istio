@@ -194,23 +194,24 @@ func MaybeConvertWasmExtensionConfig(resources []*anypb.Any, cache Cache) error 
 	return err
 }
 
-func httpWasmFailOpen(http *httpwasm.Wasm) bool {
-	if failurePolicy := http.GetConfig().FailurePolicy; failurePolicy != wasmextensions.FailurePolicy_UNSPECIFIED {
-		return failurePolicy == wasmextensions.FailurePolicy_FAIL_OPEN
-	}
-
-	// FailOpen deprecated
-	return http.GetConfig().GetFailOpen() // nolint: staticcheck
-}
-
-func networkWasmFailOpen(network *networkwasm.Wasm) bool {
-	if failurePolicy := network.GetConfig().FailurePolicy; failurePolicy != wasmextensions.FailurePolicy_UNSPECIFIED {
-		return failurePolicy == wasmextensions.FailurePolicy_FAIL_OPEN
-	}
-
-	// FailOpen deprecated
-	return network.GetConfig().GetFailOpen() // nolint: staticcheck
-}
+//todo: wait go-control-plane to support
+//func httpWasmFailOpen(http *httpwasm.Wasm) bool {
+//	if failurePolicy := http.GetConfig().FailurePolicy; failurePolicy != wasmextensions.FailurePolicy_UNSPECIFIED {
+//		return failurePolicy == wasmextensions.FailurePolicy_FAIL_OPEN
+//	}
+//
+//	// FailOpen deprecated
+//	return http.GetConfig().GetFailOpen() // nolint: staticcheck
+//}
+//
+//func networkWasmFailOpen(network *networkwasm.Wasm) bool {
+//	if failurePolicy := network.GetConfig().FailurePolicy; failurePolicy != wasmextensions.FailurePolicy_UNSPECIFIED {
+//		return failurePolicy == wasmextensions.FailurePolicy_FAIL_OPEN
+//	}
+//
+//	// FailOpen deprecated
+//	return network.GetConfig().GetFailOpen() // nolint: staticcheck
+//}
 
 // tryUnmarshal returns the typed extension config and wasm config by unmarsharling `resource`,
 // if `resource` is a wasm config loading a wasm module from the remote site.

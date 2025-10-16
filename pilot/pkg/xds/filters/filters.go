@@ -19,14 +19,13 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	sfsvalue "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/common/set_filter_state/v3"
+	//sfsvalue "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/common/set_filter_state/v3"
 	cors "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/cors/v3"
 	fault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/fault/v3"
 	grpcstats "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/grpc_stats/v3"
 	grpcweb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/grpc_web/v3"
 	ondemand "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/on_demand/v3"
 	router "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
-	sfs "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/set_filter_state/v3"
 	statefulsession "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/stateful_session/v3"
 	httpinspector "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/http_inspector/v3"
 	originaldst "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/original_dst/v3"
@@ -35,9 +34,9 @@ import (
 	proxyprotocol "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/proxy_protocol/v3"
 	tlsinspector "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/tls_inspector/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	sfsnetwork "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/set_filter_state/v3"
+	//sfsnetwork "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/set_filter_state/v3"
 	previoushost "github.com/envoyproxy/go-control-plane/envoy/extensions/retry/host/previous_hosts/v3"
-	resourcedetectors "github.com/envoyproxy/go-control-plane/envoy/extensions/tracers/opentelemetry/resource_detectors/v3"
+	//resourcedetectors "github.com/envoyproxy/go-control-plane/envoy/extensions/tracers/opentelemetry/resource_detectors/v3"
 	rawbuffer "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/raw_buffer/v3"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -261,121 +260,136 @@ var (
 	ConnectAuthorityFilter = &hcm.HttpFilter{
 		Name: "connect_authority",
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: protoconv.MessageToAny(&sfs.Config{
-				OnRequestHeaders: []*sfsvalue.FilterStateValue{
-					{
-						Key: &sfsvalue.FilterStateValue_ObjectKey{
-							ObjectKey: OriginalDstFilterStateKey,
-						},
-						Value: &sfsvalue.FilterStateValue_FormatString{
-							FormatString: &core.SubstitutionFormatString{
-								Format: &core.SubstitutionFormatString_TextFormatSource{
-									TextFormatSource: &core.DataSource{
-										Specifier: &core.DataSource_InlineString{
-											InlineString: "%REQ(:AUTHORITY)%",
-										},
-									},
-								},
-							},
-						},
-						SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-					}, {
-						Key: &sfsvalue.FilterStateValue_ObjectKey{
-							ObjectKey: AuthorityFilterStateKey,
-						},
-						Value: &sfsvalue.FilterStateValue_FormatString{
-							FormatString: &core.SubstitutionFormatString{
-								Format: &core.SubstitutionFormatString_TextFormatSource{
-									TextFormatSource: &core.DataSource{
-										Specifier: &core.DataSource_InlineString{
-											InlineString: "%REQ(:AUTHORITY)%",
-										},
-									},
-								},
-							},
-						},
-						FactoryKey:         "envoy.string",
-						SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-					}, {
-						Key: &sfsvalue.FilterStateValue_ObjectKey{
-							ObjectKey: "envoy.filters.listener.original_dst.remote_ip",
-						},
-						Value: &sfsvalue.FilterStateValue_FormatString{
-							FormatString: &core.SubstitutionFormatString{
-								Format: &core.SubstitutionFormatString_TextFormatSource{
-									TextFormatSource: &core.DataSource{
-										Specifier: &core.DataSource_InlineString{
-											InlineString: "%DOWNSTREAM_REMOTE_ADDRESS%",
-										},
-									},
-								},
-							},
-						},
-						SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-					}, {
-						Key: &sfsvalue.FilterStateValue_ObjectKey{
-							ObjectKey: "io.istio.peer_principal",
-						},
-						FactoryKey: "envoy.string",
-						Value: &sfsvalue.FilterStateValue_FormatString{
-							FormatString: &core.SubstitutionFormatString{
-								Format: &core.SubstitutionFormatString_TextFormatSource{
-									TextFormatSource: &core.DataSource{
-										Specifier: &core.DataSource_InlineString{
-											InlineString: "%DOWNSTREAM_PEER_URI_SAN%",
-										},
-									},
-								},
-							},
-						},
-						SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-					}, {
-						Key: &sfsvalue.FilterStateValue_ObjectKey{
-							ObjectKey: "io.istio.local_principal",
-						},
-						FactoryKey: "envoy.string",
-						Value: &sfsvalue.FilterStateValue_FormatString{
-							FormatString: &core.SubstitutionFormatString{
-								Format: &core.SubstitutionFormatString_TextFormatSource{
-									TextFormatSource: &core.DataSource{
-										Specifier: &core.DataSource_InlineString{
-											InlineString: "%DOWNSTREAM_LOCAL_URI_SAN%",
-										},
-									},
-								},
-							},
-						},
-						SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-					},
-				},
-			}),
+			TypedConfig: protoconv.TypedStruct("type.googleapis.com/io.istio.http.connect_authority.Config"),
 		},
 	}
 
 	ConnectAuthorityNetworkFilter = &listener.Filter{
 		Name: "connect_authority",
 		ConfigType: &listener.Filter_TypedConfig{
-			TypedConfig: protoconv.MessageToAny(&sfsnetwork.Config{
-				OnNewConnection: []*sfsvalue.FilterStateValue{{
-					Key: &sfsvalue.FilterStateValue_ObjectKey{
-						ObjectKey: OriginalDstFilterStateKey,
-					},
-					Value: &sfsvalue.FilterStateValue_FormatString{
-						FormatString: &core.SubstitutionFormatString{
-							Format: &core.SubstitutionFormatString_TextFormatSource{
-								TextFormatSource: &core.DataSource{
-									Specifier: &core.DataSource_InlineString{
-										InlineString: "%FILTER_STATE(envoy.filters.listener.original_dst.local_ip:PLAIN)%",
-									},
-								},
-							},
-						},
-					},
-					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
-				}},
-			}),
+			TypedConfig: protoconv.TypedStruct("type.googleapis.com/io.istio.http.connect_authority.Config"),
 		},
 	}
+
+	// TODO wait go-control-plane to support
+	//ConnectAuthorityFilter = &hcm.HttpFilter{
+	//	Name: "connect_authority",
+	//	ConfigType: &hcm.HttpFilter_TypedConfig{
+	//		TypedConfig: protoconv.MessageToAny(&sfs.Config{
+	//			OnRequestHeaders: []*sfsvalue.FilterStateValue{
+	//				{
+	//					Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//						ObjectKey: OriginalDstFilterStateKey,
+	//					},
+	//					Value: &sfsvalue.FilterStateValue_FormatString{
+	//						FormatString: &core.SubstitutionFormatString{
+	//							Format: &core.SubstitutionFormatString_TextFormatSource{
+	//								TextFormatSource: &core.DataSource{
+	//									Specifier: &core.DataSource_InlineString{
+	//										InlineString: "%REQ(:AUTHORITY)%",
+	//									},
+	//								},
+	//							},
+	//						},
+	//					},
+	//					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//				}, {
+	//					Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//						ObjectKey: AuthorityFilterStateKey,
+	//					},
+	//					Value: &sfsvalue.FilterStateValue_FormatString{
+	//						FormatString: &core.SubstitutionFormatString{
+	//							Format: &core.SubstitutionFormatString_TextFormatSource{
+	//								TextFormatSource: &core.DataSource{
+	//									Specifier: &core.DataSource_InlineString{
+	//										InlineString: "%REQ(:AUTHORITY)%",
+	//									},
+	//								},
+	//							},
+	//						},
+	//					},
+	//					FactoryKey:         "envoy.string",
+	//					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//				}, {
+	//					Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//						ObjectKey: "envoy.filters.listener.original_dst.remote_ip",
+	//					},
+	//					Value: &sfsvalue.FilterStateValue_FormatString{
+	//						FormatString: &core.SubstitutionFormatString{
+	//							Format: &core.SubstitutionFormatString_TextFormatSource{
+	//								TextFormatSource: &core.DataSource{
+	//									Specifier: &core.DataSource_InlineString{
+	//										InlineString: "%DOWNSTREAM_REMOTE_ADDRESS%",
+	//									},
+	//								},
+	//							},
+	//						},
+	//					},
+	//					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//				}, {
+	//					Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//						ObjectKey: "io.istio.peer_principal",
+	//					},
+	//					FactoryKey: "envoy.string",
+	//					Value: &sfsvalue.FilterStateValue_FormatString{
+	//						FormatString: &core.SubstitutionFormatString{
+	//							Format: &core.SubstitutionFormatString_TextFormatSource{
+	//								TextFormatSource: &core.DataSource{
+	//									Specifier: &core.DataSource_InlineString{
+	//										InlineString: "%DOWNSTREAM_PEER_URI_SAN%",
+	//									},
+	//								},
+	//							},
+	//						},
+	//					},
+	//					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//				}, {
+	//					Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//						ObjectKey: "io.istio.local_principal",
+	//					},
+	//					FactoryKey: "envoy.string",
+	//					Value: &sfsvalue.FilterStateValue_FormatString{
+	//						FormatString: &core.SubstitutionFormatString{
+	//							Format: &core.SubstitutionFormatString_TextFormatSource{
+	//								TextFormatSource: &core.DataSource{
+	//									Specifier: &core.DataSource_InlineString{
+	//										InlineString: "%DOWNSTREAM_LOCAL_URI_SAN%",
+	//									},
+	//								},
+	//							},
+	//						},
+	//					},
+	//					SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//				},
+	//			},
+	//		}),
+	//	},
+	//}
+	//
+	//ConnectAuthorityNetworkFilter = &listener.Filter{
+	//	Name: "connect_authority",
+	//	ConfigType: &listener.Filter_TypedConfig{
+	//		TypedConfig: protoconv.MessageToAny(&sfsnetwork.Config{
+	//			OnNewConnection: []*sfsvalue.FilterStateValue{{
+	//				Key: &sfsvalue.FilterStateValue_ObjectKey{
+	//					ObjectKey: OriginalDstFilterStateKey,
+	//				},
+	//				Value: &sfsvalue.FilterStateValue_FormatString{
+	//					FormatString: &core.SubstitutionFormatString{
+	//						Format: &core.SubstitutionFormatString_TextFormatSource{
+	//							TextFormatSource: &core.DataSource{
+	//								Specifier: &core.DataSource_InlineString{
+	//									InlineString: "%FILTER_STATE(envoy.filters.listener.original_dst.local_ip:PLAIN)%",
+	//								},
+	//							},
+	//						},
+	//					},
+	//				},
+	//				SharedWithUpstream: sfsvalue.FilterStateValue_ONCE,
+	//			}},
+	//		}),
+	//	},
+	//}
 )
 
 // Router is used a bunch, so its worth precomputing even though we have a few options.
@@ -420,12 +434,12 @@ var (
 // OpenTelemetry Resource Detectors
 var (
 	EnvironmentResourceDetector = &core.TypedExtensionConfig{
-		Name:        "envoy.tracers.opentelemetry.resource_detectors.environment",
-		TypedConfig: protoconv.MessageToAny(&resourcedetectors.EnvironmentResourceDetectorConfig{}),
+		Name: "envoy.tracers.opentelemetry.resource_detectors.environment",
+		//TypedConfig: protoconv.MessageToAny(&resourcedetectors.EnvironmentResourceDetectorConfig{}),
 	}
 	DynatraceResourceDetector = &core.TypedExtensionConfig{
-		Name:        "envoy.tracers.opentelemetry.resource_detectors.dynatrace",
-		TypedConfig: protoconv.MessageToAny(&resourcedetectors.DynatraceResourceDetectorConfig{}),
+		Name: "envoy.tracers.opentelemetry.resource_detectors.dynatrace",
+		//TypedConfig: protoconv.MessageToAny(&resourcedetectors.DynatraceResourceDetectorConfig{}),
 	}
 )
 

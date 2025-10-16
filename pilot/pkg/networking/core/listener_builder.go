@@ -27,10 +27,7 @@ import (
 	tcp "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
-	"k8s.io/apimachinery/pkg/types"
-
 	extensions "istio.io/api/extensions/v1alpha1"
-	"istio.io/api/label"
 	meshconfig "istio.io/api/mesh/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/features"
@@ -482,11 +479,12 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 		filters = extension.PopAppendHTTP(filters, wasm, extensions.PluginPhase_STATS)
 		filters = extension.PopAppendHTTP(filters, wasm, extensions.PluginPhase_UNSPECIFIED_PHASE)
 		// Add ExtProc per listener only if the Gateway has any inferencePool attached to it
-		if kubeGwName, ok := lb.node.Labels[label.IoK8sNetworkingGatewayGatewayName.Name]; ok {
-			if lb.push.GatewayAPIController.HasInferencePool(types.NamespacedName{Name: kubeGwName, Namespace: lb.node.GetNamespace()}) {
-				filters = append(filters, xdsfilters.InferencePoolExtProc)
-			}
-		}
+		//todo: wait go-control-plane to support
+		//if kubeGwName, ok := lb.node.Labels[label.IoK8sNetworkingGatewayGatewayName.Name]; ok {
+		//	if lb.push.GatewayAPIController.HasInferencePool(types.NamespacedName{Name: kubeGwName, Namespace: lb.node.GetNamespace()}) {
+		//		filters = append(filters, xdsfilters.InferencePoolExtProc)
+		//	}
+		//}
 	}
 
 	if httpOpts.protocol == protocol.GRPCWeb {
