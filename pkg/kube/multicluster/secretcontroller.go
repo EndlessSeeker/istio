@@ -188,6 +188,11 @@ func (c *Controller) registerHandler(h handler) {
 // Run starts the controller until it receives a message over stopCh
 func (c *Controller) Run(stopCh <-chan struct{}) error {
 	// run handlers for the config cluster; do not store this *Cluster in the ClusterStore or give it a SyncTimeout
+	for _, secretHandler := range c.handlers {
+		global.CacheSyncs = append(global.CacheSyncs, secretHandler.HasSynced)
+	}
+
+	// run handlers for the config cluster; do not store this *Cluster in the ClusterStore or give it a SyncTimeout
 	// this is done outside the goroutine, we should block other Run/startFuncs until this is registered
 	c.configClusterSyncers = c.handleAdd(c.configCluster)
 	go func() {
