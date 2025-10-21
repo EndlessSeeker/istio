@@ -446,8 +446,6 @@ func BuildHTTPRoutesForVirtualService(
 func BuildHTTPRoutesForVirtualServiceWithHTTPFilters(
 	node *model.Proxy,
 	virtualService config.Config,
-	serviceRegistry map[host.Name]*model.Service,
-	hashByDestination DestinationHashMap,
 	listenPort int,
 	gatewayNames sets.String,
 	opts RouteOptions,

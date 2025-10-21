@@ -710,15 +710,23 @@ func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(
 
 		vskey := virtualService.Name + "/" + virtualService.Namespace
 
+		hashByDestination := istio_route.GetConsistentHashForVirtualService(push, node, virtualService)
+		infPoolConfigs := istio_route.CheckAndGetInferencePoolConfigs(virtualService)
 		if routes, exists = gatewayRoutes[gatewayName][vskey]; !exists {
 			opts := istio_route.RouteOptions{
 				IsTLS:                     server.Tls != nil,
 				IsHTTP3AltSvcHeaderNeeded: isH3DiscoveryNeeded,
 				Mesh:                      push.Mesh,
+				LookupService: func(name host.Name) *model.Service {
+					return nameToServiceMap[name]
+				},
+				LookupDestinationCluster: istio_route.GetDestinationCluster,
+				LookupHash: func(destination *networking.HTTPRouteDestination) *networking.LoadBalancerSettings_ConsistentHashLB {
+					return hashByDestination[destination]
+				},
+				InferencePoolExtensionRefs: infPoolConfigs,
 			}
-			hashByDestination := istio_route.GetConsistentHashForVirtualService(push, node, virtualService)
-			routes, err = istio_route.BuildHTTPRoutesForVirtualServiceWithHTTPFilters(node, virtualService, nameToServiceMap,
-				hashByDestination, port, sets.New(gatewayName), opts, globalHTTPFilters)
+			routes, err = istio_route.BuildHTTPRoutesForVirtualServiceWithHTTPFilters(node, virtualService, port, sets.New(gatewayName), opts, globalHTTPFilters)
 			if err != nil {
 				log.Debugf("%s omitting routes for virtual service %v/%v due to error: %v", node.ID, virtualService.Namespace, virtualService.Name, err)
 				continue
@@ -952,8 +960,7 @@ func (configgen *ConfigGeneratorImpl) buildGatewayHTTPRouteConfig(
 					InferencePoolExtensionRefs: infPoolConfigs,
 				}
 				// update by ingress
-				routes, err = istio_route.BuildHTTPRoutesForVirtualServiceWithHTTPFilters(node, virtualService, nameToServiceMap,
-					hashByDestination, port, sets.New(gatewayName), opts, globalHTTPFilters)
+				routes, err = istio_route.BuildHTTPRoutesForVirtualServiceWithHTTPFilters(node, virtualService, port, sets.New(gatewayName), opts, globalHTTPFilters)
 				// End update by ingress
 				if err != nil {
 					log.Debugf("%s omitting routes for virtual service %v/%v due to error: %v", node.ID, virtualService.Namespace, virtualService.Name, err)
