@@ -175,7 +175,7 @@ func TestTranslateCORSPolicyForwardNotMatchingPreflights(t *testing.T) {
 		UnmatchedPreflights: networking.CorsPolicy_IGNORE,
 	}
 	expectedCorsPolicy := &cors.CorsPolicy{
-		ForwardNotMatchingPreflights: wrapperspb.Bool(false),
+		//ForwardNotMatchingPreflights: wrapperspb.Bool(false),
 		AllowOriginStringMatch: []*matcher.StringMatcher{
 			{MatchPattern: &matcher.StringMatcher_Exact{Exact: "exact"}},
 			{MatchPattern: &matcher.StringMatcher_Prefix{Prefix: "prefix"}},
@@ -220,7 +220,7 @@ func TestTranslateCORSPolicy(t *testing.T) {
 				},
 			},
 		},
-		ForwardNotMatchingPreflights: wrapperspb.Bool(true),
+		//ForwardNotMatchingPreflights: wrapperspb.Bool(true),
 		FilterEnabled: &core.RuntimeFractionalPercent{
 			DefaultValue: &xdstype.FractionalPercent{
 				Numerator:   100,

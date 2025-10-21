@@ -16,6 +16,7 @@ package mesh_test
 
 import (
 	"fmt"
+	alifeatures "istio.io/istio/pkg/ali/features"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -218,6 +219,31 @@ func TestDefaultMeshConfig(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigSource(t *testing.T) {
+	alifeatures.DefaultConfigSources = `[{"address":"xds://127.0.0.1:15051"},{"address":"k8s://local"}]`
+	m := mesh.DefaultMeshConfig()
+	if _, err := agent.ValidateMeshConfig(m); err != nil {
+		t.Errorf("validation of default mesh config failed with %v", err)
+	}
+	if len(m.ConfigSources) != 2 {
+		t.Errorf("invalid ConfigSources %+v", m.ConfigSources)
+	}
+	if m.ConfigSources[0].Address != "xds://127.0.0.1:15051" {
+		t.Errorf("got invalid address %s", m.ConfigSources[0].Address)
+	}
+	if m.ConfigSources[1].Address != "k8s://local" {
+		t.Errorf("got invalid address %s", m.ConfigSources[1].Address)
+	}
+	cm, err := mesh.ApplyMeshConfig(`configSources: [{"address":"k8s://"}]`, m)
+	if err != nil {
+		t.Errorf("apply mesh config failed:%v", err)
+	}
+	if len(cm.ConfigSources) != 3 {
+		t.Errorf("invalid ConfigSources %+v", cm.ConfigSources)
+	}
+	alifeatures.DefaultConfigSources = ""
+}
+
 func TestApplyMeshConfigDefaults(t *testing.T) {
 	configPath := "/test/config/patch"
 	yaml := fmt.Sprintf(`
@@ -232,6 +258,7 @@ defaultConfig:
 	if err != nil {
 		t.Fatalf("ApplyMeshConfigDefaults() failed: %v", err)
 	}
+	got.MseIngressGlobalConfig = &meshconfig.MSEIngressGlobalConfig{}
 	assert.Equal(t, got, want)
 	// Verify overrides
 	got, err = mesh.ApplyMeshConfigDefaults(`

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"istio.io/istio/pkg/config/mesh/meshwatcher"
 	"reflect"
 	"sort"
 	"strings"
@@ -1225,7 +1226,11 @@ func TestResolveVirtualServiceShortnames(t *testing.T) {
 		Name:      "test",
 	}
 
-	resolveVirtualServiceShortnames(vs, meta)
+	c := config.Config{
+		Meta: meta,
+		Spec: vs,
+	}
+	resolveVirtualServiceShortnames(c)
 
 	if !reflect.DeepEqual(vs, target) {
 		t.Fatal("should be equal")
@@ -1362,7 +1367,7 @@ func TestGetExtensionConfigsFromEnvoyFilter(t *testing.T) {
 	}
 	env.ConfigStore = &store
 	m := mesh.DefaultMeshConfig()
-	env.Watcher = mesh.NewFixedWatcher(m)
+	env.Watcher = meshwatcher.NewTestWatcher(m)
 	env.Init()
 
 	// Init a new push context

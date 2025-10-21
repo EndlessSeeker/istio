@@ -3378,7 +3378,7 @@ func TestBuildListenerTLSContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := BuildListenerTLSContext(tt.serverTLSSettings, tt.proxy, tt.push, tt.transportProtocol, tt.gatewayTCPServerWithTLS)
+			ctx := BuildListenerTLSContext(tt.serverTLSSettings, tt.proxy, tt.push, tt.transportProtocol, tt.gatewayTCPServerWithTLS, nil)
 
 			// Check certificate count
 			if len(ctx.CommonTlsContext.TlsCertificateSdsSecretConfigs) != tt.expectedCertCount {
