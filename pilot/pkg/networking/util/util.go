@@ -891,6 +891,8 @@ func ShallowCopyTrafficPolicy(original *networking.TrafficPolicy) *networking.Tr
 }
 
 func DelimitedStatsPrefix(statPrefix string) string {
-	statPrefix += constants.StatPrefixDelimiter
+	if features.EnableDelimitedStatsTagRegex {
+		statPrefix += constants.StatPrefixDelimiter
+	}
 	return statPrefix
 }
