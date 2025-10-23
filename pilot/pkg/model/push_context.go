@@ -2634,6 +2634,19 @@ func (ps *PushContext) SecretAllowed(ourKind config.GroupVersionKind, resourceNa
 	return ps.GatewayAPIController.SecretAllowed(ourKind, resourceName, namespace)
 }
 
+// add by ingress to fix panic
+func (ps *PushContext) ReferenceAllowed(kind config.GroupVersionKind, resourceName string, namespace string) bool {
+	// Currently, only Secret has reference policy, and only implemented by Gateway API controller.
+	switch kind {
+	case gvk.Secret:
+		if ps.GatewayAPIController != nil {
+			return ps.GatewayAPIController.SecretAllowed(kind, resourceName, namespace)
+		}
+	default:
+	}
+	return false
+}
+
 func (ps *PushContext) ServiceAccounts(hostname host.Name, namespace string) []string {
 	return ps.serviceAccounts[serviceAccountKey{
 		hostname:  hostname,
