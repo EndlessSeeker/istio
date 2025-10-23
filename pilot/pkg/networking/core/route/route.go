@@ -468,7 +468,7 @@ func BuildHTTPRoutesForVirtualServiceWithHTTPFilters(
 			catchall = true
 		} else {
 			for _, match := range http.Match {
-				if r := TranslateRoute(node, http, nil, listenPort, virtualService, gatewayNames, opts); r != nil {
+				if r := TranslateRoute(node, http, match, listenPort, virtualService, gatewayNames, opts); r != nil {
 					out = append(out, r)
 					r.TypedPerFilterConfig = mseingress.ConstructTypedPerFilterConfigForRoute(globalHTTPFilters, virtualService, http)
 					// This is a catch all path. Routes are matched in order, so we will never go beyond this match
