@@ -17,9 +17,12 @@ package wasm
 import (
 	"errors"
 	"fmt"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"net/http"
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	udpa "github.com/cncf/xds/go/udpa/type/v1"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -228,14 +231,14 @@ func TestWasmConvert(t *testing.T) {
 		{
 			name: "mix",
 			input: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-fail-close"],
+				extensionConfigMap["remote-load-fail-open"],
 				extensionConfigMap["remote-load-success"],
 			},
 			wantOutput: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-deny"],
+				extensionConfigMap["remote-load-fail-open"],
 				extensionConfigMap["remote-load-success-local-file"],
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "remote load fail open",
@@ -243,19 +246,9 @@ func TestWasmConvert(t *testing.T) {
 				extensionConfigMap["remote-load-fail-open"],
 			},
 			wantOutput: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-allow"],
+				extensionConfigMap["remote-load-fail-open"],
 			},
-			wantErr: false,
-		},
-		{
-			name: "remote load fail close",
-			input: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-fail-close"],
-			},
-			wantOutput: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-deny"],
-			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "no typed struct",
@@ -293,9 +286,9 @@ func TestWasmConvert(t *testing.T) {
 				extensionConfigMap["no-http-uri"],
 			},
 			wantOutput: []*core.TypedExtensionConfig{
-				extensionConfigMap["remote-load-deny"],
+				extensionConfigMap["no-http-uri"],
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "secret",
@@ -504,3 +497,78 @@ var extensionConfigMap = map[string]*core.TypedExtensionConfig{
 		},
 	}),
 }
+
+// Added by Ingress
+func TestContainsAotInCustomSectionWithValidWasm(t *testing.T) {
+	tmpDir := t.TempDir()
+	options := defaultOptions()
+	options.HTTPRequestTimeout = 10 * time.Second
+	cache := NewLocalFileCache(tmpDir, options)
+	defer cache.Cleanup()
+	defer remote.DefaultTransport.(*http.Transport).CloseIdleConnections()
+
+	tests := []struct {
+		name        string
+		downloadURL string
+		expected    bool
+	}{
+		{
+			name:        "wasm file without AOT section",
+			downloadURL: "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/request-block:1.0.0",
+			expected:    false,
+		},
+		{
+			name:        "wasm file with AOT section",
+			downloadURL: "oci://registry.cn-hangzhou.aliyuncs.com/jingze/wasm-plugin:1.0.0",
+			expected:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f, err := cache.Get(test.downloadURL, GetOptions{
+				ResourceName:    "test_wasm",
+				ResourceVersion: "1.0.0",
+				RequestTimeout:  10 * time.Second,
+				PullSecret:      []byte{},
+				PullPolicy:      Unspecified,
+			})
+			if err != nil {
+				t.Errorf("failed to download wasm file: %v", err)
+			}
+			hasAotSection := containsWamrAotInCustomSection(f)
+			if hasAotSection != test.expected {
+				t.Errorf("containsWamrAotInCustomSection(%q) = %v; want %v", f, hasAotSection, test.expected)
+			}
+		})
+	}
+}
+
+func TestContainsAotInCustomSectionWithInValidWasm(t *testing.T) {
+	tests := []struct {
+		name     string
+		wasmFile string
+		expected bool
+	}{
+		{
+			name:     "empty wasm file",
+			wasmFile: "",
+			expected: false,
+		},
+		{
+			name:     "invalid wasm file",
+			wasmFile: "./convert.go",
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := containsWamrAotInCustomSection(test.wasmFile)
+			if result != test.expected {
+				t.Errorf("containsWamrAotInCustomSection(%q) = %v; want %v", test.wasmFile, result, test.expected)
+			}
+		})
+	}
+}
+
+// End added by Ingress

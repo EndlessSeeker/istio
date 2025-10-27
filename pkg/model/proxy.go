@@ -362,9 +362,18 @@ type NodeMetadata struct {
 // if not present.
 func (m NodeMetadata) ProxyConfigOrDefault(def *meshconfig.ProxyConfig) *meshconfig.ProxyConfig {
 	if m.ProxyConfig != nil {
+		// Added by ingress
+		mergeProxyConfigWhenNeeded((*meshconfig.ProxyConfig)(m.ProxyConfig), def)
+		// End added by ingress
 		return (*meshconfig.ProxyConfig)(m.ProxyConfig)
 	}
 	return def
+}
+
+func mergeProxyConfigWhenNeeded(dest *meshconfig.ProxyConfig, src *meshconfig.ProxyConfig) {
+	if src != nil {
+		dest.DisableAlpnH2 = src.DisableAlpnH2
+	}
 }
 
 func (m *BootstrapNodeMetadata) UnmarshalJSON(data []byte) error {

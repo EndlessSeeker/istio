@@ -45,6 +45,8 @@ type endpointSliceController struct {
 	c             *Controller
 }
 
+var _ kubeEndpointsController = &endpointSliceController{}
+
 var (
 	endpointSliceRequirement = labelRequirement(mcs.LabelServiceName, selection.DoesNotExist, nil)
 	endpointSliceSelector    = klabels.NewSelector().Add(*endpointSliceRequirement)
@@ -59,6 +61,10 @@ func newEndpointSliceController(c *Controller) *endpointSliceController {
 	}
 	registerHandlers[*v1.EndpointSlice](c, slices, "EndpointSlice", out.onEvent, nil)
 	return out
+}
+
+func (esc *endpointSliceController) HasSynced() bool {
+	return esc.slices.HasSynced()
 }
 
 func (esc *endpointSliceController) podArrived(name, ns string) error {

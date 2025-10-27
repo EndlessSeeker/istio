@@ -16,13 +16,12 @@ package core
 
 import (
 	"fmt"
-	"net/url"
 	"sort"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tracingcfg "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	otelsamplers "github.com/envoyproxy/go-control-plane/envoy/extensions/tracers/opentelemetry/samplers/v3"
+	//otelsamplers "github.com/envoyproxy/go-control-plane/envoy/extensions/tracers/opentelemetry/samplers/v3"
 	envoy_type_metadata_v3 "github.com/envoyproxy/go-control-plane/envoy/type/metadata/v3"
 	tracing "github.com/envoyproxy/go-control-plane/envoy/type/tracing/v3"
 	xdstype "github.com/envoyproxy/go-control-plane/envoy/type/v3"
@@ -36,7 +35,6 @@ import (
 	"istio.io/istio/pilot/pkg/networking"
 	authz_model "istio.io/istio/pilot/pkg/security/authz/model"
 	"istio.io/istio/pilot/pkg/util/protoconv"
-	xdsfilters "istio.io/istio/pilot/pkg/xds/filters"
 	"istio.io/istio/pilot/pkg/xds/requestidextension"
 	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/log"
@@ -266,66 +264,67 @@ func otelConfig(serviceName string, otelProvider *meshconfig.MeshConfig_Extensio
 		ServiceName: serviceName,
 	}
 
-	if otelProvider.GetHttp() != nil {
-		// export via HTTP
-		httpService := otelProvider.GetHttp()
-		te, err := url.JoinPath(hostname, httpService.GetPath())
-		if err != nil {
-			return nil, false, fmt.Errorf("could not parse otlp/http traces endpoint: %v", err)
-		}
-		oc.HttpService = &core.HttpService{
-			HttpUri: &core.HttpUri{
-				Uri: te,
-				HttpUpstreamType: &core.HttpUri_Cluster{
-					Cluster: cluster,
-				},
-				Timeout: httpService.GetTimeout(),
+	//todo: wait go-control-plane to support
+	//if otelProvider.GetHttp() != nil {
+	//	// export via HTTP
+	//	httpService := otelProvider.GetHttp()
+	//	te, err := url.JoinPath(hostname, httpService.GetPath())
+	//	if err != nil {
+	//		return nil, false, fmt.Errorf("could not parse otlp/http traces endpoint: %v", err)
+	//	}
+	//	oc.HttpService = &core.HttpService{
+	//		HttpUri: &core.HttpUri{
+	//			Uri: te,
+	//			HttpUpstreamType: &core.HttpUri_Cluster{
+	//				Cluster: cluster,
+	//			},
+	//			Timeout: httpService.GetTimeout(),
+	//		},
+	//		RequestHeadersToAdd: buildHTTPHeaders(httpService.GetHeaders()),
+	//	}
+	//
+	//} else {
+	//	// export via gRPC
+	oc.GrpcService = &core.GrpcService{
+		TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+			EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
+				ClusterName: cluster,
+				Authority:   hostname,
 			},
-			RequestHeadersToAdd: buildHTTPHeaders(httpService.GetHeaders()),
-		}
-
-	} else {
-		// export via gRPC
-		oc.GrpcService = &core.GrpcService{
-			TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
-				EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
-					ClusterName: cluster,
-					Authority:   hostname,
-				},
-			},
-			Timeout:         otelProvider.GetGrpc().GetTimeout(),
-			InitialMetadata: buildInitialMetadata(otelProvider.GetGrpc().GetInitialMetadata()),
-		}
+		},
+		Timeout:         otelProvider.GetGrpc().GetTimeout(),
+		InitialMetadata: buildInitialMetadata(otelProvider.GetGrpc().GetInitialMetadata()),
 	}
+	//}
 
 	// Add configured resource detectors
-	if otelProvider.ResourceDetectors != nil {
-		res := []*core.TypedExtensionConfig{}
-		rd := otelProvider.ResourceDetectors
-
-		if rd.Environment != nil {
-			res = append(res, xdsfilters.EnvironmentResourceDetector)
-		}
-		if rd.Dynatrace != nil {
-			res = append(res, xdsfilters.DynatraceResourceDetector)
-		}
-		oc.ResourceDetectors = res
-	}
-
-	// Add configured Sampler
-	if otelProvider.Sampling != nil {
-		switch sampler := otelProvider.Sampling.(type) {
-		case *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider_DynatraceSampler_:
-			dts, err := configureDynatraceSampler(hostname, cluster, otelProvider, sampler, pushCtx)
-			if err != nil {
-				return nil, false, err
-			}
-			oc.Sampler = dts
-		}
-
-		// If any sampler is configured for the OpenTelemetryTracingProvider
-		hasCustomSampler = true
-	}
+	//if otelProvider.ResourceDetectors != nil {
+	//	res := []*core.TypedExtensionConfig{}
+	//	rd := otelProvider.ResourceDetectors
+	//
+	//	if rd.Environment != nil {
+	//		res = append(res, xdsfilters.EnvironmentResourceDetector)
+	//	}
+	//	if rd.Dynatrace != nil {
+	//		res = append(res, xdsfilters.DynatraceResourceDetector)
+	//	}
+	//	oc.ResourceDetectors = res
+	//}
+	//
+	//// Add configured Sampler
+	//if otelProvider.Sampling != nil {
+	//	switch sampler := otelProvider.Sampling.(type) {
+	//	case *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider_DynatraceSampler_:
+	//		dts, err := configureDynatraceSampler(hostname, cluster, otelProvider, sampler, pushCtx)
+	//		if err != nil {
+	//			return nil, false, err
+	//		}
+	//		oc.Sampler = dts
+	//	}
+	//
+	//	// If any sampler is configured for the OpenTelemetryTracingProvider
+	//	hasCustomSampler = true
+	//}
 
 	pb, err := anypb.New(oc)
 	return pb, hasCustomSampler, err
@@ -346,85 +345,86 @@ func skywalkingConfig(clusterName, hostname string) (*anypb.Any, error) {
 	return protoconv.MessageToAnyWithError(s)
 }
 
-func configureDynatraceSampler(hostname, cluster string,
-	otelProvider *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider,
-	sampler *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider_DynatraceSampler_,
-	pushCtx *model.PushContext,
-) (*core.TypedExtensionConfig, error) {
-	dsc := &otelsamplers.DynatraceSamplerConfig{
-		Tenant:             sampler.DynatraceSampler.GetTenant(),
-		ClusterId:          sampler.DynatraceSampler.GetClusterId(),
-		RootSpansPerMinute: sampler.DynatraceSampler.GetRootSpansPerMinute(),
-	}
-
-	if sampler.DynatraceSampler.HttpService == nil {
-		// The Dynatrace sampler can re-use the same Dynatrace service/cluster/headers
-		// as configured for the HTTP Exporter. In this case users
-		// can achieve a much smaller/simpler config in Istio.
-
-		// Re-use the Dynatrace API Host from the OTLP HTTP exporter
-		otlpHTTPService := otelProvider.GetHttp()
-		if otlpHTTPService == nil {
-			return nil, fmt.Errorf("dynatrace sampler could not get http settings. considering setting the http_service field on the dynatrace sampler")
-		}
-
-		uri, err := url.JoinPath(hostname, "api/v2/samplingConfiguration")
-		if err != nil {
-			return nil, fmt.Errorf("could not parse dynatrace adaptative sampling endpoint %v", err)
-		}
-
-		dsc.HttpService = &core.HttpService{
-			HttpUri: &core.HttpUri{
-				Uri: uri,
-				HttpUpstreamType: &core.HttpUri_Cluster{
-					Cluster: cluster,
-				},
-				Timeout: otlpHTTPService.GetTimeout(),
-			},
-			// Re-use the headers from the OTLP HTTP Exporter
-			RequestHeadersToAdd: buildHTTPHeaders(otlpHTTPService.GetHeaders()),
-		}
-	} else {
-		// Dynatrace customers may want to export to a OTel collector
-		// but still have the benefits of the Dynatrace Sampler.
-		// In this case, the sampler has its own HTTP configuration
-		dtapi := sampler.DynatraceSampler.HttpService
-
-		// use Dynatrace API to configure the sampler
-		dtHost, dtCluster, err := clusterLookupFn(pushCtx, dtapi.GetService(), int(dtapi.GetPort()))
-		if err != nil {
-			model.IncLookupClusterFailures("dynatrace")
-			return nil, fmt.Errorf("could not find cluster for dynatrace sampler %v", err)
-		}
-
-		uri, err := url.JoinPath(dtHost, dtapi.GetHttp().Path)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse dynatrace adaptative sampling endpoint %v", err)
-		}
-
-		dsc.HttpService = &core.HttpService{
-			HttpUri: &core.HttpUri{
-				Uri: uri,
-				HttpUpstreamType: &core.HttpUri_Cluster{
-					Cluster: dtCluster,
-				},
-				Timeout: dtapi.Http.GetTimeout(),
-			},
-			RequestHeadersToAdd: buildHTTPHeaders(dtapi.Http.GetHeaders()),
-		}
-	}
-
-	return &core.TypedExtensionConfig{
-		Name:        "envoy.tracers.opentelemetry.samplers.dynatrace",
-		TypedConfig: protoconv.MessageToAny(dsc),
-	}, nil
-}
+//func configureDynatraceSampler(hostname, cluster string,
+//	otelProvider *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider,
+//	sampler *meshconfig.MeshConfig_ExtensionProvider_OpenTelemetryTracingProvider_DynatraceSampler_,
+//	pushCtx *model.PushContext,
+//) (*core.TypedExtensionConfig, error) {
+//	dsc := &otelsamplers.DynatraceSamplerConfig{
+//		Tenant:             sampler.DynatraceSampler.GetTenant(),
+//		ClusterId:          sampler.DynatraceSampler.GetClusterId(),
+//		RootSpansPerMinute: sampler.DynatraceSampler.GetRootSpansPerMinute(),
+//	}
+//
+//	if sampler.DynatraceSampler.HttpService == nil {
+//		// The Dynatrace sampler can re-use the same Dynatrace service/cluster/headers
+//		// as configured for the HTTP Exporter. In this case users
+//		// can achieve a much smaller/simpler config in Istio.
+//
+//		// Re-use the Dynatrace API Host from the OTLP HTTP exporter
+//		otlpHTTPService := otelProvider.GetHttp()
+//		if otlpHTTPService == nil {
+//			return nil, fmt.Errorf("dynatrace sampler could not get http settings. considering setting the http_service field on the dynatrace sampler")
+//		}
+//
+//		uri, err := url.JoinPath(hostname, "api/v2/samplingConfiguration")
+//		if err != nil {
+//			return nil, fmt.Errorf("could not parse dynatrace adaptative sampling endpoint %v", err)
+//		}
+//
+//		dsc.HttpService = &core.HttpService{
+//			HttpUri: &core.HttpUri{
+//				Uri: uri,
+//				HttpUpstreamType: &core.HttpUri_Cluster{
+//					Cluster: cluster,
+//				},
+//				Timeout: otlpHTTPService.GetTimeout(),
+//			},
+//			// Re-use the headers from the OTLP HTTP Exporter
+//			RequestHeadersToAdd: buildHTTPHeaders(otlpHTTPService.GetHeaders()),
+//		}
+//	} else {
+//		// Dynatrace customers may want to export to a OTel collector
+//		// but still have the benefits of the Dynatrace Sampler.
+//		// In this case, the sampler has its own HTTP configuration
+//		dtapi := sampler.DynatraceSampler.HttpService
+//
+//		// use Dynatrace API to configure the sampler
+//		dtHost, dtCluster, err := clusterLookupFn(pushCtx, dtapi.GetService(), int(dtapi.GetPort()))
+//		if err != nil {
+//			model.IncLookupClusterFailures("dynatrace")
+//			return nil, fmt.Errorf("could not find cluster for dynatrace sampler %v", err)
+//		}
+//
+//		uri, err := url.JoinPath(dtHost, dtapi.GetHttp().Path)
+//		if err != nil {
+//			return nil, fmt.Errorf("could not parse dynatrace adaptative sampling endpoint %v", err)
+//		}
+//
+//		dsc.HttpService = &core.HttpService{
+//			HttpUri: &core.HttpUri{
+//				Uri: uri,
+//				HttpUpstreamType: &core.HttpUri_Cluster{
+//					Cluster: dtCluster,
+//				},
+//				Timeout: dtapi.Http.GetTimeout(),
+//			},
+//			RequestHeadersToAdd: buildHTTPHeaders(dtapi.Http.GetHeaders()),
+//		}
+//	}
+//
+//	return &core.TypedExtensionConfig{
+//		Name:        "envoy.tracers.opentelemetry.samplers.dynatrace",
+//		TypedConfig: protoconv.MessageToAny(dsc),
+//	}, nil
+//}
 
 func buildHCMTracing(provider string, startChildSpan bool, maxTagLen uint32, anyFn typedConfigGenFn) (*hcm.HttpConnectionManager_Tracing, error) {
 	config := &hcm.HttpConnectionManager_Tracing{}
-	if startChildSpan {
-		config.SpawnUpstreamSpan = wrapperspb.Bool(startChildSpan)
-	}
+	//TODO: wait go-control-plane to support
+	//if startChildSpan {
+	//	config.SpawnUpstreamSpan = wrapperspb.Bool(startChildSpan)
+	//}
 	cfg, err := anyFn()
 	if err != nil {
 		return config, fmt.Errorf("could not configure tracing provider %q: %v", provider, err)

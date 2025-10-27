@@ -18,6 +18,10 @@ FROM ${BASE_DISTRIBUTION:-debug}
 ARG TARGETARCH
 COPY ${TARGETARCH:-amd64}/pilot-discovery /usr/local/bin/pilot-discovery
 
+COPY higress-pilot-start.sh /usr/local/bin/higress-pilot-start.sh
+
+RUN chmod +x /usr/local/bin/higress-pilot-start.sh
+
 USER 1337:1337
 
-ENTRYPOINT ["/usr/local/bin/pilot-discovery"]
+ENTRYPOINT ["/usr/local/bin/higress-pilot-start.sh"]

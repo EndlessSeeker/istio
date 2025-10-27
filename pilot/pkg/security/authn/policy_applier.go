@@ -165,10 +165,11 @@ func convertToEnvoyJwtConfig(jwtRules []*v1beta1.JWTRule, push *model.PushContex
 			Forward:              jwtRule.ForwardOriginalToken,
 			ForwardPayloadHeader: jwtRule.OutputPayloadToHeader,
 			PayloadInMetadata:    filters.EnvoyJwtFilterPayload,
-			NormalizePayloadInMetadata: &envoy_jwt.JwtProvider_NormalizePayload{
-				SpaceDelimitedClaims: []string{"scope", "permission"},
-			},
-			ClearRouteCache: clearRouteCache,
+			// TODO wait go-control-plane to support
+			//NormalizePayloadInMetadata: &envoy_jwt.JwtProvider_NormalizePayload{
+			//	SpaceDelimitedClaims: []string{"scope", "permission"},
+			//},
+			//ClearRouteCache: clearRouteCache,
 		}
 
 		for _, claimAndHeader := range jwtRule.OutputClaimToHeaders {

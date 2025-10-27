@@ -15,6 +15,9 @@
 package core
 
 import (
+	"istio.io/istio/pilot/pkg/networking/plugin/mseingress"
+	alifeatures "istio.io/istio/pkg/ali/features"
+	"istio.io/istio/pkg/config/constants"
 	"time"
 
 	accesslog "github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3"
@@ -24,10 +27,7 @@ import (
 	tcp "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
-	"k8s.io/apimachinery/pkg/types"
-
 	extensions "istio.io/api/extensions/v1alpha1"
-	"istio.io/api/label"
 	meshconfig "istio.io/api/mesh/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/features"
@@ -71,6 +71,10 @@ type ListenerBuilder struct {
 	authzBuilder *authz.Builder
 	// authzCustomBuilder provides access to CUSTOM authz configuration for the given proxy.
 	authzCustomBuilder *authz.Builder
+
+	// Added by ingress
+	mseIngressBuilder *mseingress.Builder
+	// End added by ingress
 }
 
 // enabledInspector captures if for a given listener, listener filter inspectors are added
@@ -87,6 +91,9 @@ func NewListenerBuilder(node *model.Proxy, push *model.PushContext) *ListenerBui
 	builder.authnBuilder = authn.NewBuilder(push, node)
 	builder.authzBuilder = authz.NewBuilder(authz.Local, push, node, node.Type == model.Waypoint)
 	builder.authzCustomBuilder = authz.NewBuilder(authz.Custom, push, node, node.Type == model.Waypoint)
+	// Added by ingress
+	builder.mseIngressBuilder = mseingress.NewBuilder(push, node)
+	// End added by ingress
 	return builder
 }
 
@@ -356,8 +363,13 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 	}
 
 	// Allow websocket upgrades
-	websocketUpgrade := &hcm.HttpConnectionManager_UpgradeConfig{UpgradeType: "websocket"}
-	connectionManager.UpgradeConfigs = []*hcm.HttpConnectionManager_UpgradeConfig{websocketUpgrade}
+	// Added by ingress
+	// serverless gateway don't support websocket
+	if alifeatures.WebsocketEnabled {
+		websocketUpgrade := &hcm.HttpConnectionManager_UpgradeConfig{UpgradeType: "websocket"}
+		connectionManager.UpgradeConfigs = []*hcm.HttpConnectionManager_UpgradeConfig{websocketUpgrade}
+	}
+	// End added
 
 	if idleTimeout := parseDuration(lb.node.Metadata.IdleTimeout); idleTimeout != nil {
 		connectionManager.CommonHttpProtocolOptions = &core.HttpProtocolOptions{
@@ -367,7 +379,49 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 
 	connectionManager.StreamIdleTimeout = durationpb.New(0 * time.Second)
 
-	if httpOpts.rds != "" {
+	// Added by ingress
+	enableSRDS := false
+
+	if alifeatures.EnableScopedRDS &&
+		(httpOpts.protocol.IsHTTP() || (httpOpts.protocol == protocol.HTTPS)) {
+		enableSRDS = true
+		portFragment := &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{
+			Type: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor_{
+				LocalPortValueExtractor: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor{},
+			}}
+		hostFragment := &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{
+			Type: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor_{
+				HostValueExtractor: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor{},
+			}}
+		scopedRoutes := &hcm.HttpConnectionManager_ScopedRoutes{
+			ScopedRoutes: &hcm.ScopedRoutes{
+				Name: constants.DefaultScopedRouteName,
+				ScopeKeyBuilder: &hcm.ScopedRoutes_ScopeKeyBuilder{
+					Fragments: []*hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{portFragment, hostFragment},
+				},
+				RdsConfigSource: &core.ConfigSource{
+					ConfigSourceSpecifier: &core.ConfigSource_Ads{
+						Ads: &core.AggregatedConfigSource{},
+					},
+					InitialFetchTimeout: durationpb.New(0),
+					ResourceApiVersion:  core.ApiVersion_V3,
+				},
+				ConfigSpecifier: &hcm.ScopedRoutes_ScopedRds{
+					ScopedRds: &hcm.ScopedRds{
+						ScopedRdsConfigSource: &core.ConfigSource{
+							ConfigSourceSpecifier: &core.ConfigSource_Ads{
+								Ads: &core.AggregatedConfigSource{},
+							},
+							InitialFetchTimeout: durationpb.New(0),
+							ResourceApiVersion:  core.ApiVersion_V3,
+						},
+					},
+				},
+			},
+		}
+		connectionManager.RouteSpecifier = scopedRoutes
+	} else if httpOpts.rds != "" {
+		//  End added by ingress
 		rds := &hcm.HttpConnectionManager_Rds{
 			Rds: &hcm.Rds{
 				ConfigSource: &core.ConfigSource{
@@ -390,6 +444,17 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 	reqIDExtensionCtx := configureTracing(lb.push, lb.node, connectionManager, httpOpts.class, httpOpts.policySvc)
 
 	filters := []*hcm.HttpFilter{}
+	// Added by ingress
+	// Now only support onDemandRDS when enable SRDS
+	if alifeatures.OnDemandRDS && enableSRDS {
+		filters = append([]*hcm.HttpFilter{xdsfilters.OnDemand, xdsfilters.Cors}, filters...)
+	} else {
+		// End added by ingress
+		// Make sure cors filter always in the first.
+		filters = append([]*hcm.HttpFilter{xdsfilters.Cors}, filters...)
+	}
+	// End added by ingress
+
 	if !httpOpts.isWaypoint {
 		wasm := lb.push.WasmPluginsByListenerInfo(lb.node, model.WasmPluginListenerInfo{
 			Port:  httpOpts.port,
@@ -405,15 +470,21 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 		filters = append(filters, lb.authnBuilder.BuildHTTP(httpOpts.class)...)
 		filters = extension.PopAppendHTTP(filters, wasm, extensions.PluginPhase_AUTHZ)
 		filters = append(filters, lb.authzBuilder.BuildHTTP(httpOpts.class)...)
+
+		// Added by ingress
+		filters = append(filters, lb.mseIngressBuilder.BuildHTTPFilters(filters)...)
+		// End added by ingress
+
 		// TODO: these feel like the wrong place to insert, but this retains backwards compatibility with the original implementation
 		filters = extension.PopAppendHTTP(filters, wasm, extensions.PluginPhase_STATS)
 		filters = extension.PopAppendHTTP(filters, wasm, extensions.PluginPhase_UNSPECIFIED_PHASE)
 		// Add ExtProc per listener only if the Gateway has any inferencePool attached to it
-		if kubeGwName, ok := lb.node.Labels[label.IoK8sNetworkingGatewayGatewayName.Name]; ok {
-			if lb.push.GatewayAPIController.HasInferencePool(types.NamespacedName{Name: kubeGwName, Namespace: lb.node.GetNamespace()}) {
-				filters = append(filters, xdsfilters.InferencePoolExtProc)
-			}
-		}
+		//todo: wait go-control-plane to support
+		//if kubeGwName, ok := lb.node.Labels[label.IoK8sNetworkingGatewayGatewayName.Name]; ok {
+		//	if lb.push.GatewayAPIController.HasInferencePool(types.NamespacedName{Name: kubeGwName, Namespace: lb.node.GetNamespace()}) {
+		//		filters = append(filters, xdsfilters.InferencePoolExtProc)
+		//	}
+		//}
 	}
 
 	if httpOpts.protocol == protocol.GRPCWeb {
@@ -422,7 +493,10 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 		filters = append(filters, xdsfilters.GrpcWeb)
 	}
 
-	filters = append(filters, xdsfilters.GrpcStats)
+	// update by ingress
+	if alifeatures.EnableLDSGrpcStatsFilter {
+		filters = append(filters, xdsfilters.GrpcStats)
+	}
 
 	// append ALPN HTTP filter in HTTP connection manager for outbound listener only.
 	if features.ALPNFilter {
@@ -432,7 +506,7 @@ func (lb *ListenerBuilder) buildHTTPConnectionManager(httpOpts *httpListenerOpts
 	}
 
 	// TypedPerFilterConfig in route needs these filters.
-	filters = append(filters, xdsfilters.Fault, xdsfilters.Cors)
+	filters = append(filters, xdsfilters.Fault)
 	if !httpOpts.isWaypoint {
 		filters = append(filters, lb.push.Telemetry.HTTPFilters(lb.node, httpOpts.class, nil)...)
 	}

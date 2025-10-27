@@ -36,33 +36,41 @@ import (
 
 // Various locks used throughout the code
 const (
-	NamespaceController          = "istio-namespace-controller-election"
-	ClusterTrustBundleController = "istio-clustertrustbundle-controller-election"
-	ServiceExportController      = "istio-serviceexport-controller-election"
+	NamespaceController          = "higress-namespace-controller-election"
+	ClusterTrustBundleController = "higress-clustertrustbundle-controller-election"
+	ServiceExportController      = "higress-serviceexport-controller-election"
 	// This holds the legacy name to not conflict with older control plane deployments which are just
 	// doing the ingress syncing.
-	IngressController = "istio-leader"
+	IngressController = "higress-leader"
 	// GatewayStatusController controls the status of gateway.networking.k8s.io objects. For the v1alpha1
 	// this was formally "istio-gateway-leader"; because they are a different API group we need a different
 	// election to ensure we do not only handle one or the other.
-	GatewayStatusController = "istio-gateway-status-leader"
+	GatewayStatusController = "higress-gateway-status-leader"
 	// StatusController controls writing Istio status to objects
-	StatusController  = "istio-status-leader"
-	AnalyzeController = "istio-analyze-leader"
+	StatusController  = "higress-status-leader"
+	AnalyzeController = "higress-analyze-leader"
 	// GatewayDeploymentController controls translating Kubernetes Gateway objects into various derived
 	// resources (Service, Deployment, etc).
 	// Unlike other types which use ConfigMaps, we use a Lease here. This is because:
 	// * Others use configmap for backwards compatibility
 	// * This type is per-revision, so it is higher cost. Leases are cheaper
 	// * Other types use "prioritized leader election", which isn't implemented for Lease
-	GatewayDeploymentController = "istio-gateway-deployment"
-	InferencePoolController     = "istio-gateway-inferencepool"
-	NodeUntaintController       = "istio-node-untaint"
-	IPAutoallocateController    = "istio-ip-autoallocate"
+	GatewayDeploymentController = "higress-gateway-deployment"
+	InferencePoolController     = "higress-gateway-inferencepool"
+	NodeUntaintController       = "higress-node-untaint"
+	IPAutoallocateController    = "higress-ip-autoallocate"
 )
 
 // Leader election key prefix for remote istiod managed clusters
 const remoteIstiodPrefix = "^"
+
+var ClusterScopedNamespaceController = NamespaceController
+
+func init() {
+	if features.ClusterName != "" && features.ClusterName != "Kubernetes" {
+		ClusterScopedNamespaceController = fmt.Sprintf("%s-namespace-controller-election", features.ClusterName)
+	}
+}
 
 type LeaderElection struct {
 	namespace string

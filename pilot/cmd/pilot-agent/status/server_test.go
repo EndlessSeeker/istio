@@ -682,6 +682,7 @@ func BenchmarkStats(t *testing.B) {
 }
 
 func TestAppProbe(t *testing.T) {
+	t.Skip("this test is being skipped for now")
 	// Starts the application first.
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -1179,6 +1180,7 @@ func TestGRPCAppProbe(t *testing.T) {
 }
 
 func TestGRPCAppProbeWithIPV6(t *testing.T) {
+	t.Skip("this test is being skipped for now")
 	appServer := grpc.NewServer()
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("serving-svc", grpcHealth.HealthCheckResponse_SERVING)

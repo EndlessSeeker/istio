@@ -500,6 +500,9 @@ var PushOrder = []string{
 	v3.ClusterType,
 	v3.EndpointType,
 	v3.ListenerType,
+	// Added by ingress
+	v3.ScopedRouteType,
+	// End added by ingress
 	v3.RouteType,
 	v3.SecretType,
 	v3.AddressType,

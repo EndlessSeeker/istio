@@ -17,8 +17,11 @@ package xds
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pkg/ali/global"
+	"istio.io/istio/pkg/config/constants"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -251,6 +254,22 @@ func (s *DiscoveryServer) dropCacheForRequest(req *model.PushRequest) {
 	} else {
 		// Otherwise, just clear the updated configs
 		s.Cache.Clear(req.ConfigsUpdated)
+
+		//Added by ingress
+		trimKeyMap := make(map[model.ConfigKey]struct{})
+		for configKey := range req.ConfigsUpdated {
+			if strings.HasPrefix(configKey.Name, constants.IstioIngressGatewayName+"-") {
+				trimKeyMap[model.ConfigKey{
+					Kind:      configKey.Kind,
+					Name:      strings.TrimPrefix(configKey.Name, constants.IstioIngressGatewayName+"-"),
+					Namespace: configKey.Namespace,
+				}] = struct{}{}
+			}
+		}
+		if len(trimKeyMap) > 0 {
+			s.Cache.Clear(trimKeyMap)
+		}
+		//End added by ingress
 	}
 }
 
@@ -308,6 +327,13 @@ func (s *DiscoveryServer) ConfigUpdate(req *model.PushRequest) {
 		// the cache.
 		s.Cache.ClearAll()
 	}
+
+	// Added by ingress
+	if req.Full {
+		log.Infof("full push happen, reason:%v", req.Reason)
+	}
+	// End added by ingress
+
 	inboundConfigUpdates.Increment()
 	s.InboundUpdates.Inc()
 	if req.Full && fullPushLog.DebugEnabled() {
@@ -352,6 +378,14 @@ func debounce(ch chan *model.PushRequest, stopCh <-chan struct{}, opts DebounceO
 	pushWorker := func() {
 		eventDelay := time.Since(startDebounce)
 		quietTime := time.Since(lastConfigUpdateTime)
+
+		// Added by ingress
+		if global.ShouldBlockPush() {
+			timeChan = time.After(opts.DebounceAfter)
+			return
+		}
+		// End added by ingress
+
 		// it has been too long or quiet enough
 		if eventDelay >= opts.debounceMax || quietTime >= opts.DebounceAfter {
 			if req != nil {

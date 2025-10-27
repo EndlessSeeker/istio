@@ -198,6 +198,7 @@ func (s *CAServer) Watch(_ *ghc.HealthCheckRequest, _ ghc.Health_WatchServer) er
 	return nil
 }
 
-func (s *CAServer) List(_ context.Context, _ *ghc.HealthListRequest) (*ghc.HealthListResponse, error) {
-	return &ghc.HealthListResponse{}, nil
-}
+//todo: wait go-control-plane to support
+//func (s *CAServer) List(_ context.Context, _ *ghc.HealthListRequest) (*ghc.HealthListResponse, error) {
+//	return &ghc.HealthListResponse{}, nil
+//}

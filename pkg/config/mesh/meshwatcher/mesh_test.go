@@ -39,11 +39,13 @@ func TestWatcherShouldNotifyHandlers(t *testing.T) {
 	writeMessage(t, path, m)
 
 	w := newWatcher(t, path)
+	w.Mesh().MseIngressGlobalConfig = &meshconfig.MSEIngressGlobalConfig{}
 	assert.Equal(t, w.Mesh(), m)
 
 	var newM *meshconfig.MeshConfig
 	w.AddMeshHandler(func() {
 		newM = w.Mesh()
+		newM.MseIngressGlobalConfig = &meshconfig.MSEIngressGlobalConfig{}
 		tracker.Record("event")
 	})
 	removeReg := w.AddMeshHandler(func() {

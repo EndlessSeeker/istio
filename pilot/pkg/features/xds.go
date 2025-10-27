@@ -72,6 +72,24 @@ var (
 	EnableRDSCaching = env.Register("PILOT_ENABLE_RDS_CACHE", true,
 		"If true, Pilot will cache RDS responses. Note: this depends on PILOT_ENABLE_XDS_CACHE.").Get()
 
+	// EnableLDSCaching determines if LDS caching is enabled. This is explicitly split out of ENABLE_XDS_CACHE,
+	// so that in case there are issues with the LDS cache we can just disable the LDS cache.
+	EnableLDSCaching = env.Register("PILOT_ENABLE_LDS_CACHE", false,
+		"If true, Pilot will cache LDS responses. Note: this depends on PILOT_ENABLE_XDS_CACHE.").Get()
+
 	EnableXDSCacheMetrics = env.Register("PILOT_XDS_CACHE_STATS", false,
 		"If true, Pilot will collect metrics for XDS cache efficiency.").Get()
+
+	enableEndpointSliceController, endpointSliceControllerSpecified = env.RegisterBoolVar(
+		"PILOT_USE_ENDPOINT_SLICE",
+		false,
+		"If enabled, Pilot will use EndpointSlices as the source of endpoints for Kubernetes services. "+
+			"By default, this is false, and Endpoints will be used. This requires the Kubernetes EndpointSlice controller to be enabled. "+
+			"Currently this is mutual exclusive - either Endpoints or EndpointSlices will be used",
+	).Lookup()
 )
+
+// EnableEndpointSliceController returns the value of the feature flag and whether it was actually specified.
+func EnableEndpointSliceController() (value bool, ok bool) {
+	return enableEndpointSliceController, endpointSliceControllerSpecified
+}

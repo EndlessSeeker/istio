@@ -16,6 +16,8 @@ package controller
 
 import (
 	"context"
+	alifeatures "istio.io/istio/pkg/ali/features"
+	"istio.io/istio/pkg/cluster"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -49,11 +51,12 @@ type kubeController struct {
 	MeshServiceController *aggregate.Controller
 	*Controller
 	workloadEntryController *serviceentry.Controller
-	stop                    chan struct{}
+	//stop                    chan struct{}
 }
 
 func (k *kubeController) Close() {
-	close(k.stop)
+	// Updated by ingress
+	//close(k.stop)
 	clusterID := k.Controller.clusterID
 	k.MeshServiceController.UnRegisterHandlersForCluster(clusterID)
 	k.MeshServiceController.DeleteRegistry(clusterID, provider.Kubernetes)
@@ -112,7 +115,15 @@ func NewMulticluster(
 		s:                      s,
 	}
 	mc.component = multicluster.BuildMultiClusterComponent(controller, func(cluster *multicluster.Cluster) *kubeController {
+		// Updated by ingress
 		stop := make(chan struct{})
+
+		if !shouldWatchServices(cluster.ID) {
+			mc.setupNamespaceController(cluster, stop)
+			return nil
+		}
+		// End updated by ingress
+
 		client := cluster.Client
 		configCluster := opts.ClusterID == cluster.ID
 
@@ -123,11 +134,17 @@ func NewMulticluster(
 		}
 		log.Infof("Initializing Kubernetes service registry %q", options.ClusterID)
 		options.ConfigCluster = configCluster
+
+		// Add by ingress, different clusters may have different k8s version, re-apply conditional default
+		options.EndpointMode = DetectEndpointMode(client)
+
 		kubeRegistry := NewController(client, options)
 		kubeController := &kubeController{
 			MeshServiceController: opts.MeshServiceController,
 			Controller:            kubeRegistry,
-			stop:                  stop,
+			// Updated by ingress
+			//stop:                  stop,
+			// End updated by ingress
 		}
 		mc.initializeCluster(cluster, kubeController, kubeRegistry, options, configCluster, stop)
 		return kubeController
@@ -204,10 +221,11 @@ func (m *Multicluster) initializeCluster(cluster *multicluster.Cluster, kubeCont
 			} else {
 				// Block server exit on graceful termination of the leader controller.
 				m.s.RunComponentAsyncAndWait("namespace controller", func(_ <-chan struct{}) error {
+					// update by ingress
 					log.Infof("joining leader-election for %s in %s on cluster %s",
-						leaderelection.NamespaceController, options.SystemNamespace, options.ClusterID)
+						leaderelection.ClusterScopedNamespaceController, options.SystemNamespace, options.ClusterID)
 					election := leaderelection.
-						NewLeaderElectionMulticluster(options.SystemNamespace, m.serverID, leaderelection.NamespaceController, m.revision, !configCluster, client).
+						NewLeaderElectionMulticluster(options.SystemNamespace, m.serverID, leaderelection.ClusterScopedNamespaceController, m.revision, !configCluster, client).
 						AddRunFunction(func(leaderStop <-chan struct{}) {
 							log.Infof("starting namespace controller for cluster %s", cluster.ID)
 							nc := NewNamespaceController(client, m.caBundleWatcher)
@@ -324,3 +342,55 @@ func createWleConfigStore(client kubelib.Client, revision string, opts Options) 
 	}
 	return crdclient.NewForSchemas(client, crdOpts, workloadEntriesSchemas)
 }
+
+// Added by ingress
+func shouldWatchServices(clusterID cluster.ID) bool {
+	if alifeatures.WatchResourcesByLabelForPrimaryCluster != "" {
+		if alifeatures.ShouldWatchConfigClusterServices {
+			return true
+		}
+		if string(clusterID) == features.ClusterName {
+			log.Info("Istio watches resources by label, it will do not to watch services from local cluster.")
+			return false
+		}
+
+		return true
+	}
+
+	return true
+}
+
+// Added by ingress
+func (m *Multicluster) setupNamespaceController(cluster *multicluster.Cluster, clusterStopCh <-chan struct{}) {
+	client := cluster.Client
+
+	// clusterStopCh is a channel that will be closed when this cluster removed.
+	options := m.opts
+	options.ClusterID = cluster.ID
+
+	if m.distributeCACert {
+		// Block server exit on graceful termination of the leader controller.
+		m.s.RunComponentAsyncAndWait("start namespace controller", func(_ <-chan struct{}) error {
+			log.Infof("joining leader-election for %s in %s on cluster %s",
+				leaderelection.ClusterScopedNamespaceController, options.SystemNamespace, options.ClusterID)
+			leaderelection.
+				NewLeaderElection(options.SystemNamespace, m.serverID, leaderelection.ClusterScopedNamespaceController, m.revision, client).
+				AddRunFunction(func(leaderStop <-chan struct{}) {
+					log.Infof("starting namespace controller for cluster %s", cluster.ID)
+					nc := NewNamespaceController(client, m.caBundleWatcher)
+					// Start informers again. This fixes the case where informers for namespace do not start,
+					// as we create them only after acquiring the leader lock
+					// Note: stop here should be the overall pilot stop, NOT the leader election stop. We are
+					// basically lazy loading the informer, if we stop it when we lose the lock we will never
+					// recreate it again.
+					client.RunAndWait(clusterStopCh)
+					nc.Run(leaderStop)
+				}).Run(clusterStopCh)
+			return nil
+		})
+	}
+
+	return
+}
+
+// End add by ingress

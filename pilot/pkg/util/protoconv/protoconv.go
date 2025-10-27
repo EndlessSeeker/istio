@@ -62,6 +62,13 @@ func MessageToAny(msg proto.Message) *anypb.Any {
 	return out
 }
 
+func TypedStruct(typeURL string) *anypb.Any {
+	return MessageToAny(&udpa.TypedStruct{
+		TypeUrl: typeURL,
+		Value:   nil,
+	})
+}
+
 func TypedStructWithFields(typeURL string, fields map[string]interface{}) *anypb.Any {
 	value, err := structpb.NewStruct(fields)
 	if err != nil {

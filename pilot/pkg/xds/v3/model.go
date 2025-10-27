@@ -19,9 +19,14 @@ import (
 )
 
 const (
-	ClusterType                = model.ClusterType
-	EndpointType               = model.EndpointType
-	ListenerType               = model.ListenerType
+	ClusterType  = model.ClusterType
+	EndpointType = model.EndpointType
+	ListenerType = model.ListenerType
+
+	// Added by ingress
+	ScopedRouteType = model.ScopedRouteType
+	// End added by ingress
+
 	RouteType                  = model.RouteType
 	SecretType                 = model.SecretType
 	ExtensionConfigurationType = model.ExtensionConfigurationType

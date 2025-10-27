@@ -16,7 +16,6 @@ package xds
 
 import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/networking/core"
 	"istio.io/istio/pilot/pkg/util/protoconv"
@@ -80,8 +79,10 @@ func (l LdsGenerator) Generate(proxy *model.Proxy, _ *model.WatchedResource, req
 	if !ldsNeedsPush(proxy, req) {
 		return nil, model.DefaultXdsLogDetails, nil
 	}
-	listeners := l.ConfigGenerator.BuildListeners(proxy, req.Push)
+
 	resources := model.Resources{}
+	// Modified by Higress
+	listeners := l.ConfigGenerator.BuildListeners(proxy, req.Push)
 	for _, c := range listeners {
 		resources = append(resources, &discovery.Resource{
 			Name:     c.Name,
@@ -89,4 +90,5 @@ func (l LdsGenerator) Generate(proxy *model.Proxy, _ *model.WatchedResource, req
 		})
 	}
 	return resources, model.DefaultXdsLogDetails, nil
+	// End modified by Higress
 }

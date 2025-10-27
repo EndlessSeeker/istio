@@ -38,6 +38,9 @@ const (
 	AddressType               = APITypePrefix + "istio.workload.Address"
 	WorkloadType              = APITypePrefix + "istio.workload.Workload"
 	WorkloadAuthorizationType = APITypePrefix + "istio.security.Authorization"
+	// Added by ingress
+	ScopedRouteType = APITypePrefix + "envoy.config.route.v3.ScopedRouteConfiguration"
+	// End added by ingress
 )
 
 // GetShortType returns an abbreviated form of a type, useful for logging or human friendly messages
@@ -63,6 +66,10 @@ func GetShortType(typeURL string) string {
 		return "WDS"
 	case WorkloadAuthorizationType:
 		return "WADS"
+	// Added by ingress
+	case ScopedRouteType:
+		return "SRDS"
+	// End added by ingress
 	default:
 		return typeURL
 	}
@@ -93,6 +100,10 @@ func GetMetricType(typeURL string) string {
 		return "wds"
 	case WorkloadAuthorizationType:
 		return "wads"
+	// Added by ingress
+	case ScopedRouteType:
+		return "srds"
+	// End added by ingress
 	default:
 		return typeURL
 	}

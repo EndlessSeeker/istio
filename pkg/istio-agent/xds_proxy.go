@@ -413,6 +413,9 @@ func (p *XdsProxy) handleUpstreamRequest(con *ProxyConnection) {
 				downstreamErr(con, err)
 				return
 			}
+			// Add by ingress
+			proxyLog.Debugf("xds proxy forward request to istio success, request: %+v", req)
+			// End added by ingress
 
 			// forward to istiod
 			con.sendRequest(req)
@@ -476,6 +479,7 @@ func (p *XdsProxy) handleUpstreamResponse(con *ProxyConnection) {
 		select {
 		case resp := <-con.responsesChan:
 			// TODO: separate upstream response handling from requests sending, which are both time costly
+			proxyLog.Debugf("response for type url %s, response: %+v", resp.TypeUrl, resp)
 			proxyLog.WithLabels(
 				"id", con.conID,
 				"type", model.GetShortType(resp.TypeUrl),
@@ -564,6 +568,7 @@ func forwardToEnvoy(con *ProxyConnection, resp *discovery.DiscoveryResponse) {
 		downstreamErr(con, err)
 		return
 	}
+	proxyLog.Debugf("xds proxy forward resposne to envoy success, response: %+v", resp)
 }
 
 // sendDownstream sends discovery response.

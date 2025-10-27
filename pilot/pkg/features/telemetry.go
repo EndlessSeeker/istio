@@ -80,4 +80,7 @@ var (
 	// TODO: change this to default true and add compatibility profile in v1.27
 	SpawnUpstreamSpanForGateway = env.Register("PILOT_SPAWN_UPSTREAM_SPAN_FOR_GATEWAY", false,
 		"If true, separate tracing span for each upstream request for gateway.").Get()
+
+	EnableDelimitedStatsTagRegex = env.Register("ENABLE_DELIMITED_STATS_TAG_REGEX", false,
+		"If true, pilot will use the new delimited stat tag regex to generate Envoy stats tags.").Get()
 )

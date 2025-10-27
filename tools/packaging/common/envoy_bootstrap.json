@@ -76,6 +76,38 @@
   "stats_config": {
     "use_all_default_tags": false,
     "stats_tags": [
+{
+"tag_name": "wasm_runtime",
+"regex": "^wasm\\.envoy\\.wasm\\.(.*?\\.)plugin"
+},
+{
+"tag_name": "thread_name",
+"regex": "^wasm\\..*?\\.plugin\\..*?\\..*?\\.(\\w+\\.)"
+},
+{
+"tag_name": "plugin_name",
+"regex": "^wasm\\..*?plugin\\.(.*?\\..*?\\.)"
+},
+{
+"tag_name": "phase",
+"regex": "(_phase=([a-z_]+))"
+},
+{
+"tag_name": "ruleid",
+"regex": "(_ruleid=([0-9]+))"
+},
+{
+"tag_name": "ai_route",
+"regex": "^wasmcustom\\.route\\.((.*?)\\.)upstream"
+},
+{
+"tag_name": "ai_cluster",
+"regex": "^wasmcustom\\..*?\\.upstream\\.((.*?)\\.)model"
+},
+{
+"tag_name": "ai_model",
+"regex": "^wasmcustom\\..*?\\.model\\.((.*?)\\.)(input_token|output_token)"
+},
       {
         "tag_name": "cluster_name",
         "regex": "^cluster(\\.(.+);)"
