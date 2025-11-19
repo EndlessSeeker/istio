@@ -2,6 +2,7 @@ package credentials
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/schema/kind"
 	"strings"
 
 	"istio.io/istio/pilot/pkg/features"
@@ -44,5 +45,5 @@ func createSecretResourceForIngress(resourceName string) (SecretResource, error)
 	if len(name) == 0 {
 		return SecretResource{}, fmt.Errorf("invalid resource name %q. Expected name", resourceName)
 	}
-	return SecretResource{ResourceType: KubernetesIngressSecretType, Name: name, Namespace: namespace, ResourceName: resourceName, Cluster: cluster.ID(clusterId)}, nil
+	return SecretResource{ResourceType: KubernetesIngressSecretType, ResourceKind: kind.Secret, Name: name, Namespace: namespace, ResourceName: resourceName, Cluster: cluster.ID(clusterId)}, nil
 }
