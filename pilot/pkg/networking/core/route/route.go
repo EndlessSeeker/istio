@@ -662,6 +662,7 @@ func applyHTTPRouteDestination(
 	regexEngine := &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}}
 	action := &route.RouteAction{
 		// Added by ingress
+		Cors:                         TranslateCORSPolicyOld(in.GetCorsPolicy()),
 		InternalActiveRedirectPolicy: TranslateInternalActiveRedirectPolicy(in.InternalActiveRedirect, regexEngine),
 	}
 
@@ -1396,6 +1397,43 @@ func forwardNotMatchingPreflights(cors *networking.CorsPolicy) *wrapperspb.BoolV
 	// This is the default behavior before envoy 1.30.
 	return wrapperspb.Bool(true)
 }
+
+// Start - Added by Ingress
+// TranslateCORSPolicy translates CORS policy
+func TranslateCORSPolicyOld(in *networking.CorsPolicy) *route.CorsPolicy {
+	if in == nil {
+		return nil
+	}
+
+	// CORS filter is enabled by default
+	out := route.CorsPolicy{}
+	// nolint: staticcheck
+	if in.AllowOrigins != nil {
+		out.AllowOriginStringMatch = util.ConvertToEnvoyMatches(in.AllowOrigins)
+	} else if in.AllowOrigin != nil {
+		out.AllowOriginStringMatch = util.StringToExactMatch(in.AllowOrigin)
+	}
+
+	out.EnabledSpecifier = &route.CorsPolicy_FilterEnabled{
+		FilterEnabled: &core.RuntimeFractionalPercent{
+			DefaultValue: &xdstype.FractionalPercent{
+				Numerator:   100,
+				Denominator: xdstype.FractionalPercent_HUNDRED,
+			},
+		},
+	}
+
+	out.AllowCredentials = in.AllowCredentials
+	out.AllowHeaders = strings.Join(in.AllowHeaders, ",")
+	out.AllowMethods = strings.Join(in.AllowMethods, ",")
+	out.ExposeHeaders = strings.Join(in.ExposeHeaders, ",")
+	if in.MaxAge != nil {
+		out.MaxAge = strconv.FormatInt(in.MaxAge.GetSeconds(), 10)
+	}
+	return &out
+}
+
+// End - Added by Ingress
 
 // TranslateCORSPolicy translates CORS policy
 func TranslateCORSPolicy(proxy *model.Proxy, in *networking.CorsPolicy) *cors.CorsPolicy {
