@@ -406,7 +406,9 @@ func rewriteVMConfig(resourceName string, vm *wasmextensions.VmConfig, status *s
 
 	// Default timeout, without this, if a user does not specify a timeout in the config, it fails with deadline exceeded
 	// while building transport in go container.
-	timeout := time.Second * 5
+	// Modified by higress
+	timeout := time.Second * 60
+	// End modified by higress
 	if remote.GetHttpUri().Timeout != nil {
 		// This is always 30s, because the timeout is set by the control plane when converted to WasmPluginWrapper.
 		// see buildDataSource() in pilot/pkg/model/extensions.go
