@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/networking/util"
@@ -448,8 +449,15 @@ func patchHTTPFilters(patchContext networking.EnvoyFilter_PatchContext,
 			//  as this loop will be called very frequently
 		}
 	}
-	for _, lp := range patches[networking.EnvoyFilter_HTTP_FILTER] {
+	httpPatches := patches[networking.EnvoyFilter_HTTP_FILTER]
+	for _, lp := range httpPatches {
 		applied := false
+		if lp.Operation == networking.EnvoyFilter_Patch_ADD && lp.WasmPhase != extensions.PluginPhase_UNSPECIFIED_PHASE {
+			if httpFilterAlreadyPresent(httpconn.HttpFilters, lp) {
+				// Wasm phase-aware ADDs may be handled during listener construction for mixed ordering.
+				continue
+			}
+		}
 		if !commonConditionMatch(patchContext, lp) ||
 			!listenerMatch(lis, lp) ||
 			!filterChainMatch(lis, fc, lp) ||
@@ -522,6 +530,22 @@ func patchHTTPFilters(patchContext networking.EnvoyFilter_PatchContext,
 		// convert to any type
 		filter.ConfigType = &listener.Filter_TypedConfig{TypedConfig: protoconv.MessageToAny(httpconn)}
 	}
+}
+
+func httpFilterAlreadyPresent(filters []*hcm.HttpFilter, lp *model.EnvoyFilterConfigPatchWrapper) bool {
+	if lp == nil || lp.Value == nil {
+		return false
+	}
+	patchFilter, ok := lp.Value.(*hcm.HttpFilter)
+	if !ok || patchFilter == nil || patchFilter.Name == "" {
+		return false
+	}
+	for _, filter := range filters {
+		if filter != nil && filter.Name == patchFilter.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeHTTPFilter patches passed in filter if it is MERGE operation.
@@ -765,6 +789,23 @@ func httpFilterMatch(filter *hcm.HttpFilter, lp *model.EnvoyFilterConfigPatchWra
 	match := lp.Match.GetListener().FilterChain.Filter.SubFilter
 
 	return match.Name == filter.Name
+}
+
+// HTTPFilterPatchMatch determines whether a patch matches a given listener/filter chain/filter context.
+func HTTPFilterPatchMatch(
+	patchContext networking.EnvoyFilter_PatchContext,
+	lp *model.EnvoyFilterConfigPatchWrapper,
+	lis *listener.Listener,
+	fc *listener.FilterChain,
+	filter *listener.Filter,
+) bool {
+	if lp == nil || lis == nil || fc == nil || filter == nil {
+		return false
+	}
+	return commonConditionMatch(patchContext, lp) &&
+		listenerMatch(lis, lp) &&
+		filterChainMatch(lis, fc, lp) &&
+		networkFilterMatch(filter, lp)
 }
 
 func patchContextMatch(patchContext networking.EnvoyFilter_PatchContext,
