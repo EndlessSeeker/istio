@@ -713,6 +713,12 @@ func TestConvertResources(t *testing.T) {
 				"default/^valid-invalid-parent-ref-",
 			),
 		},
+		{
+			name: "gateway-invalid-parameters-ref",
+			validationIgnorer: crdvalidation.NewValidationIgnorer(
+				"istio-system/^valid-parameters$",
+			),
+		},
 	}
 	test.SetForTest(t, &features.EnableGatewayAPIGatewayClassController, false)
 	test.SetForTest(t, &features.EnableGatewayAPIInferenceExtension, true)
@@ -785,7 +791,7 @@ func setupClientCRDs(t *testing.T, kc kube.CLIClient) {
 	for _, crd := range []schema.GroupVersionResource{
 		gvr.KubernetesGateway,
 		gvr.ReferenceGrant,
-		gvr.XListenerSet,
+		gvr.ListenerSet,
 		gvr.GatewayClass,
 		gvr.HTTPRoute,
 		gvr.GRPCRoute,
