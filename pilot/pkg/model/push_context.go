@@ -890,17 +890,7 @@ func (ps *PushContext) GatewayServices(proxy *Proxy, patches *MergedEnvoyFilterW
 	// system during initial installation.
 	if proxy.MergedGateway != nil {
 		for _, gw := range proxy.MergedGateway.GatewayNameForServer {
-			for _, vsConfig := range ps.VirtualServicesForGateway(proxy.ConfigNamespace, gw) {
-				vs, ok := vsConfig.Spec.(*networking.VirtualService)
-				if !ok { // should never happen
-					log.Errorf("Failed in getting a virtual service: %v", vsConfig.Labels)
-					return svcs
-				}
-
-				for host := range virtualServiceDestinations(vs) {
-					hostsFromGateways.Insert(host)
-				}
-			}
+			hostsFromGateways.Merge(ps.virtualServiceIndex.destinationsByGateway[gw])
 		}
 	}
 	log.Debugf("GatewayServices: gateway %v is exposing these hosts:%v", proxy.ID, hostsFromGateways)
