@@ -182,6 +182,19 @@ func TestRetry(t *testing.T) {
 			},
 		},
 		{
+			name: "TestRetryOnWithOverflowAndNegativeStatusCodes",
+			route: &networking.HTTPRoute{
+				Retries: &networking.HTTPRetry{
+					Attempts: 2,
+					RetryOn:  "4294967296,-1,503",
+				},
+			},
+			assertFunc: func(g *WithT, policy *envoyroute.RetryPolicy) {
+				g.Expect(policy.RetryOn).To(Equal("4294967296,-1,retriable-status-codes"))
+				g.Expect(policy.RetriableStatusCodes).To(Equal([]uint32{503}))
+			},
+		},
+		{
 			name: "TestMissingRetryOnShouldReturnDefaults",
 			// Create a route with a retry policy with two attempts configured.
 			route: &networking.HTTPRoute{

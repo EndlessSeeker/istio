@@ -176,9 +176,9 @@ func parseRetryOn(retryOn string) (string, []uint32) {
 		}
 
 		// Try converting it to an integer to see if it's a valid HTTP status code.
-		i, err := strconv.Atoi(part)
+		i, err := strconv.ParseUint(part, 10, 32)
 
-		if err == nil && http.StatusText(i) != "" {
+		if err == nil && i >= 100 && i <= 599 && http.StatusText(int(i)) != "" {
 			codes = append(codes, uint32(i))
 		} else {
 			tojoin = append(tojoin, part)
