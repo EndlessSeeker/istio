@@ -51,7 +51,11 @@ spec:
   - '*'
   tcp:
   - route:
-    - destination: {}
+    - destination:
+        host: internal.cluster.local
+        port:
+          number: 65535
+        subset: invalid-backend
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService

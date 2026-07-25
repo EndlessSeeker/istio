@@ -828,7 +828,18 @@ func buildTCPDestination(
 		if err != nil {
 			if isInvalidBackend(err) {
 				invalidBackendErr = err
-				// keep going, we will gracefully drop invalid backends
+				// Keep the invalid backend in the weighted route, but never leave the
+				// destination host empty. An empty host is translated to UnknownService,
+				// which accepts the downstream connection without promptly rejecting it.
+				// A concrete unresolved destination preserves the backend's weight and
+				// causes the connection to be rejected, as required by Gateway API.
+				if dst == nil || dst.Host == "" {
+					dst = &istio.Destination{
+						Host:   "internal.cluster.local",
+						Subset: "invalid-backend",
+						Port:   &istio.PortSelector{Number: 65535},
+					}
+				}
 			} else {
 				return nil, nil, err
 			}
