@@ -15,6 +15,7 @@
 package clienttest
 
 import (
+	"context"
 	"fmt"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -35,11 +36,39 @@ func MakeCRD(t test.Failer, c kube.Client, g schema.GroupVersionResource) {
 
 func MakeCRDWithAnnotations(t test.Failer, c kube.Client, g schema.GroupVersionResource, annotations map[string]string) {
 	t.Helper()
+	MakeCRDWithVersions(t, c, g, annotations, []v1.CustomResourceDefinitionVersion{{
+		Name:    g.Version,
+		Served:  true,
+		Storage: true,
+	}})
+}
+
+func MakeCRDWithVersions(
+	t test.Failer,
+	c kube.Client,
+	g schema.GroupVersionResource,
+	annotations map[string]string,
+	versions []v1.CustomResourceDefinitionVersion,
+) {
+	t.Helper()
 	crd := &v1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        fmt.Sprintf("%s.%s", g.Resource, g.Group),
 			Annotations: annotations,
 		},
+		Spec: v1.CustomResourceDefinitionSpec{
+			Versions: versions,
+		},
+	}
+	crds := c.Ext().ApiextensionsV1().CustomResourceDefinitions()
+	if _, err := crds.Create(context.Background(), crd, metav1.CreateOptions{}); err != nil {
+		if kerrors.IsAlreadyExists(err) {
+			if _, err = crds.Update(context.Background(), crd, metav1.UpdateOptions{}); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			t.Fatal(err)
+		}
 	}
 	// Metadata client fake is not kept in sync, so if using a fake client update that as well
 	fmc, ok := c.Metadata().(*metadatafake.FakeMetadataClient)
