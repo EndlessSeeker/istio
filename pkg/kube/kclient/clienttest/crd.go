@@ -15,10 +15,10 @@
 package clienttest
 
 import (
-	"context"
 	"fmt"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -60,10 +60,14 @@ func MakeCRDWithVersions(
 			Versions: versions,
 		},
 	}
-	crds := c.Ext().ApiextensionsV1().CustomResourceDefinitions()
-	if _, err := crds.Create(context.Background(), crd, metav1.CreateOptions{}); err != nil {
+	fc, ok := c.Ext().(*extfake.Clientset)
+	if !ok {
+		return
+	}
+	tracker := fc.Tracker()
+	if err := tracker.Create(gvr.CustomResourceDefinition, crd, ""); err != nil {
 		if kerrors.IsAlreadyExists(err) {
-			if _, err = crds.Update(context.Background(), crd, metav1.UpdateOptions{}); err != nil {
+			if err = tracker.Update(gvr.CustomResourceDefinition, crd, ""); err != nil {
 				t.Fatal(err)
 			}
 		} else {
