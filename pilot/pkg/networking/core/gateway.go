@@ -590,6 +590,10 @@ func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(
 		}
 	}
 
+	gatewayNames := sets.New[string]()
+	for _, gatewayName := range merged.GatewayNameForServer {
+		gatewayNames.Insert(gatewayName)
+	}
 	routeCache := &istio_route.Cache{
 		RouteName:    routeName,
 		ProxyVersion: node.Metadata.IstioVersion,
@@ -598,6 +602,7 @@ func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(
 		VirtualServices:         vsDependent,
 		DelegateVirtualServices: push.DelegateVirtualServices(vsDependent),
 		HTTPRoutes:              httpRoutes,
+		GatewayNames:            sets.SortedList(gatewayNames),
 		EnvoyFilterKeys:         efKeys,
 		DestinationRules:        dependentDestinationRules,
 	}
