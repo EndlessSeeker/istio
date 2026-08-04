@@ -318,7 +318,7 @@ func (n *networkManager) getGatewayDetails(svc *model.Service) []model.NetworkGa
 	// TODO label based gateways could support being the gateway for multiple networks
 	if nw := svc.Attributes.Labels[label.TopologyNetwork.Name]; nw != "" {
 		if gwPortStr := svc.Attributes.Labels[label.NetworkingGatewayPort.Name]; gwPortStr != "" {
-			if gwPort, err := strconv.Atoi(gwPortStr); err == nil {
+			if gwPort, err := strconv.ParseUint(gwPortStr, 10, 16); err == nil && gwPort != 0 {
 				return []model.NetworkGateway{{Port: uint32(gwPort), Network: network.ID(nw)}}
 			}
 			log.Warnf("could not parse %q for %s on %s/%s; defaulting to %d",

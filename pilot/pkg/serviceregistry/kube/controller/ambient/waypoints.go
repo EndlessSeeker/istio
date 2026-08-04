@@ -498,6 +498,9 @@ func findBoundListener(gateway *gatewayv1.Gateway, binding *InboundBinding) (gat
 	}
 	var match func(l gatewayv1.Listener) bool
 	if binding.Port != 0 {
+		if binding.Port > 65535 {
+			return gatewayv1.Listener{}, false
+		}
 		match = func(l gatewayv1.Listener) bool {
 			return l.Port == gatewayv1.PortNumber(binding.Port)
 		}
