@@ -444,7 +444,7 @@ func getDefaultCircuitBreakerThresholds() *cluster.CircuitBreakers_Thresholds {
 }
 
 func normalizeConcurrencyThreshold(concurrencyThreshold int) uint32 {
-	if concurrencyThreshold < 0 || uint64(concurrencyThreshold) > math.MaxUint32 {
+	if concurrencyThreshold < 0 || concurrencyThreshold > math.MaxUint32 {
 		return math.MaxUint32
 	}
 	return uint32(concurrencyThreshold)
