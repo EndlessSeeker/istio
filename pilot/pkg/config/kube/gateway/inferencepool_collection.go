@@ -27,6 +27,7 @@ import (
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
 
 	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/kube/kclient"
 	"istio.io/istio/pkg/kube/krt"
@@ -76,6 +77,7 @@ type targetPort struct {
 }
 
 type extRefInfo struct {
+	mode        kube.InferencePoolEndpointPickerMode
 	name        string
 	port        int32
 	failureMode string
@@ -130,20 +132,25 @@ func InferencePoolCollection(
 
 // createInferencePoolObject creates the InferencePool object with shadow service and extension ref info
 func createInferencePoolObject(pool *inferencev1.InferencePool, gatewayParents sets.Set[types.NamespacedName]) *InferencePool {
-	// Build extension reference info
-	extRef := extRefInfo{
-		name: string(pool.Spec.EndpointPickerRef.Name),
-	}
-
-	if pool.Spec.EndpointPickerRef.Port == nil {
-		log.Errorf("invalid InferencePool %s/%s; endpointPickerRef port is required", pool.Namespace, pool.Name)
+	mode, modeError := inferencePoolEndpointPickerMode(pool.Spec.EndpointPickerRef)
+	if modeError != "" {
+		log.Errorf("invalid InferencePool %s/%s: %s", pool.Namespace, pool.Name, modeError)
 		return nil
 	}
-	extRef.port = int32(pool.Spec.EndpointPickerRef.Port.Number)
 
-	extRef.failureMode = string(inferencev1.EndpointPickerFailClose) // Default failure mode
-	if pool.Spec.EndpointPickerRef.FailureMode != inferencev1.EndpointPickerFailClose {
-		extRef.failureMode = string(pool.Spec.EndpointPickerRef.FailureMode)
+	// Build extension reference info
+	extRef := extRefInfo{mode: mode}
+	if mode == kube.InferencePoolEndpointPickerModeExternal {
+		extRef.name = string(pool.Spec.EndpointPickerRef.Name)
+		if pool.Spec.EndpointPickerRef.Port == nil {
+			log.Errorf("invalid InferencePool %s/%s; endpointPickerRef port is required", pool.Namespace, pool.Name)
+			return nil
+		}
+		extRef.port = int32(pool.Spec.EndpointPickerRef.Port.Number)
+		extRef.failureMode = string(inferencev1.EndpointPickerFailClose)
+		if pool.Spec.EndpointPickerRef.FailureMode != inferencev1.EndpointPickerFailClose {
+			extRef.failureMode = string(pool.Spec.EndpointPickerRef.FailureMode)
+		}
 	}
 
 	svcName, err := InferencePoolServiceName(pool.Name)
@@ -176,6 +183,25 @@ func createInferencePoolObject(pool *inferencev1.InferencePool, gatewayParents s
 		extRef:         extRef,
 		gatewayParents: gatewayParents,
 	}
+}
+
+func inferencePoolEndpointPickerMode(ref inferencev1.EndpointPickerRef) (kube.InferencePoolEndpointPickerMode, string) {
+	group := string(ptr.OrEmpty(ref.Group))
+	kind := string(ref.Kind)
+	if kind == "" {
+		kind = gvk.Service.Kind
+	}
+	name := string(ref.Name)
+	if group == kube.BuiltinInferenceEndpointPickerGroup &&
+		kind == kube.BuiltinInferenceEndpointPickerKind &&
+		name == kube.BuiltinInferenceEndpointPickerName {
+		return kube.InferencePoolEndpointPickerModeBuiltin, ""
+	}
+	if group == "" && kind == gvk.Service.Kind {
+		return kube.InferencePoolEndpointPickerModeExternal, ""
+	}
+	return kube.InferencePoolEndpointPickerModeExternal,
+		fmt.Sprintf("Unsupported ExtensionRef kind or implementation: %s/%s/%s", group, kind, name)
 }
 
 // calculateInferencePoolStatus calculates the complete status for an InferencePool
@@ -411,6 +437,22 @@ func calculateResolvedRefsStatus(
 	pool *inferencev1.InferencePool,
 	services krt.Collection[*corev1.Service],
 ) *condition {
+	mode, modeError := inferencePoolEndpointPickerMode(pool.Spec.EndpointPickerRef)
+	if modeError != "" {
+		return &condition{
+			reason:  string(inferencev1.InferencePoolReasonInvalidExtensionRef),
+			status:  metav1.ConditionFalse,
+			message: modeError,
+		}
+	}
+	if mode == kube.InferencePoolEndpointPickerModeBuiltin {
+		return &condition{
+			reason:  string(inferencev1.InferencePoolReasonResolvedRefs),
+			status:  metav1.ConditionTrue,
+			message: "Built-in endpoint picker selected",
+		}
+	}
+
 	// Default Kind to Service if unset
 	kind := string(pool.Spec.EndpointPickerRef.Kind)
 	if kind == "" {
@@ -516,18 +558,28 @@ func translateShadowServiceToService(existingLabels map[string]string, shadow sh
 		})
 	}
 
+	labels := maps.Clone(existingLabels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	delete(labels, InferencePoolExtensionRefSvc)
+	delete(labels, InferencePoolExtensionRefPort)
+	delete(labels, InferencePoolExtensionRefFailureMode)
+	labels[InferencePoolRefLabel] = shadow.poolName
+	labels[constants.InternalServiceSemantics] = constants.ServiceSemanticsInferencePool
+	labels[constants.InferencePoolEndpointPickerModeLabel] = string(extRef.mode)
+	if extRef.mode == kube.InferencePoolEndpointPickerModeExternal {
+		labels[InferencePoolExtensionRefSvc] = extRef.name
+		labels[InferencePoolExtensionRefPort] = strconv.Itoa(int(extRef.port))
+		labels[InferencePoolExtensionRefFailureMode] = extRef.failureMode
+	}
+
 	// Create a new service object based on the shadow service info
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      shadow.key.Name,
 			Namespace: shadow.key.Namespace,
-			Labels: maps.MergeCopy(map[string]string{
-				InferencePoolRefLabel:                shadow.poolName,
-				InferencePoolExtensionRefSvc:         extRef.name,
-				InferencePoolExtensionRefPort:        strconv.Itoa(int(extRef.port)),
-				InferencePoolExtensionRefFailureMode: extRef.failureMode,
-				constants.InternalServiceSemantics:   constants.ServiceSemanticsInferencePool,
-			}, existingLabels),
+			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector:  shadow.selector,
@@ -558,9 +610,15 @@ func (c *Controller) reconcileShadowService(
 		// Find the InferencePool that matches the key
 		pool := inferencePools.GetKey(key.String())
 		if pool == nil {
-			// we'll generally ignore these scenarios, since the InferencePool may have been deleted
-			log.Debugf("inferencepool no longer exists", key.String())
-			return nil
+			serviceName, err := InferencePoolServiceName(key.Name)
+			if err != nil {
+				return nil
+			}
+			existingService := ptr.Flatten(servicesCollection.GetKey(key.Namespace + "/" + serviceName))
+			if existingService == nil || !isManagedShadowServiceForPool(existingService, key.Name) {
+				return nil
+			}
+			return svcClient.Delete(serviceName, key.Namespace)
 		}
 
 		// We found the InferencePool, now we need to translate it to a shadow Service
@@ -594,6 +652,19 @@ func (c *Controller) reconcileShadowService(
 	}
 }
 
+func isManagedShadowServiceForPool(service *corev1.Service, poolName string) bool {
+	if service == nil || service.Labels[InferencePoolRefLabel] != poolName ||
+		service.Labels[constants.InternalServiceSemantics] != constants.ServiceSemanticsInferencePool {
+		return false
+	}
+	for _, owner := range service.OwnerReferences {
+		if owner.APIVersion == gvk.InferencePool.GroupVersion() && owner.Kind == gvk.InferencePool.Kind && owner.Name == poolName {
+			return true
+		}
+	}
+	return false
+}
+
 // canManage checks if a service should be managed by this controller
 func (c *Controller) canManageShadowServiceForInference(obj *corev1.Service) (bool, string) {
 	if obj == nil {
@@ -601,9 +672,9 @@ func (c *Controller) canManageShadowServiceForInference(obj *corev1.Service) (bo
 		return true, ""
 	}
 
-	_, inferencePoolManaged := obj.GetLabels()[InferencePoolRefLabel]
-	// We can manage if it has no manager or if we are the manager
-	return inferencePoolManaged, obj.GetResourceVersion()
+	poolName, inferencePoolManaged := obj.GetLabels()[InferencePoolRefLabel]
+	// Only update Services carrying the complete identity written by this controller.
+	return inferencePoolManaged && isManagedShadowServiceForPool(obj, poolName), obj.GetResourceVersion()
 }
 
 func indexHTTPRouteByInferencePool(o *gateway.HTTPRoute) []string {

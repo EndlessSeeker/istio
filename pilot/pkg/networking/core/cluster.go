@@ -16,14 +16,18 @@ package core
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -36,6 +40,7 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/provider"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	"istio.io/istio/pilot/pkg/xds/endpoints"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/kind"
@@ -345,6 +350,10 @@ func (configgen *ConfigGeneratorImpl) buildOutboundClusters(cb *ClusterBuilder, 
 			if defaultCluster == nil {
 				continue
 			}
+			if service.UseInferenceSemantics() &&
+				service.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel] == constants.InferencePoolEndpointPickerModeBuiltin {
+				defaultCluster.cluster.HealthChecks = []*core.HealthCheck{inferencePoolMetricsHealthCheck(string(service.Hostname))}
+			}
 
 			// if the service uses persistent sessions, override status allows
 			// DRAINING endpoints to be kept as 'UNHEALTHY' coarse status in envoy.
@@ -389,6 +398,25 @@ func (configgen *ConfigGeneratorImpl) buildOutboundClusters(cb *ClusterBuilder, 
 	}
 
 	return resources, cacheStats{hits: hit, miss: miss}
+}
+
+func inferencePoolMetricsHealthCheck(servingHost string) *core.HealthCheck {
+	return &core.HealthCheck{
+		Timeout:            durationpb.New(2 * time.Second),
+		Interval:           durationpb.New(5 * time.Second),
+		UnhealthyThreshold: wrappers.UInt32(math.MaxUint32),
+		HealthyThreshold:   wrappers.UInt32(1),
+		StoreMetrics:       true,
+		HealthChecker: &core.HealthCheck_HttpHealthCheck_{
+			HttpHealthCheck: &core.HealthCheck_HttpHealthCheck{
+				Host: servingHost,
+				Path: "/metrics",
+				ExpectedStatuses: []*typev3.Int64Range{
+					{Start: 100, End: 600},
+				},
+			},
+		},
+	}
 }
 
 type clusterPatcher struct {
