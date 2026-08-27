@@ -15,8 +15,10 @@
 package route_test
 
 import (
+	"encoding/json"
 	"log"
 	"reflect"
+	"strings"
 	"testing"
 
 	envoycore "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -44,6 +46,17 @@ import (
 	"istio.io/istio/pkg/util/sets"
 	"istio.io/istio/pkg/wellknown"
 )
+
+func TestInferencePoolRouteRuleConfigJSONMode(t *testing.T) {
+	external, err := json.Marshal(kube.InferencePoolRouteRuleConfig{})
+	if err != nil || strings.Contains(string(external), `"Mode"`) {
+		t.Fatalf("External config must omit Mode, got %s: %v", external, err)
+	}
+	builtin, err := json.Marshal(kube.InferencePoolRouteRuleConfig{Mode: kube.InferencePoolEndpointPickerModeBuiltin})
+	if err != nil || !strings.Contains(string(builtin), `"Mode":"builtin"`) {
+		t.Fatalf("BuiltIn config must include Mode, got %s: %v", builtin, err)
+	}
+}
 
 func buildRouteOpts(sr map[host.Name]*model.Service, hash route.DestinationHashMap) route.RouteOptions {
 	return route.RouteOptions{

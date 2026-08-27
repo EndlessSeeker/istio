@@ -29,7 +29,7 @@ const (
 // This data is stored in the `Extra` field of a `config.Config` for a VirtualService.
 // The map is keyed by the `HTTPRoute.Name`.
 type InferencePoolRouteRuleConfig struct {
-	Mode             InferencePoolEndpointPickerMode
+	Mode             InferencePoolEndpointPickerMode `json:",omitempty"`
 	FQDN             string
 	Port             string
 	FailureModeAllow bool
