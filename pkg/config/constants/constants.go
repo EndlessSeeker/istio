@@ -139,16 +139,14 @@ const (
 	// The service account name that gateway workloads are running at. Used to verify that
 	// only service accounts associated with gateway workloads can query secrets.
 	// Empty means any service account name within the namespace.
-	InternalServiceAccount                 = "internal.istio.io/service-account-name"
-	InternalRouteSemantics                 = "internal.istio.io/route-semantics"
-	RouteSemanticsIngress                  = "ingress"
-	RouteSemanticsGateway                  = "gateway"
-	InternalGatewaySemantics               = "internal.istio.io/gateway-semantics"
-	GatewaySemanticsGateway                = "gateway"
-	InternalServiceSemantics               = "internal.istio.io/service-semantics"
-	ServiceSemanticsInferencePool          = "inferencepool"
-	InferencePoolEndpointPickerModeLabel   = "higress.io/inferencepool-endpoint-picker-mode"
-	InferencePoolEndpointPickerModeBuiltin = "builtin"
+	InternalServiceAccount        = "internal.istio.io/service-account-name"
+	InternalRouteSemantics        = "internal.istio.io/route-semantics"
+	RouteSemanticsIngress         = "ingress"
+	RouteSemanticsGateway         = "gateway"
+	InternalGatewaySemantics      = "internal.istio.io/gateway-semantics"
+	GatewaySemanticsGateway       = "gateway"
+	InternalServiceSemantics      = "internal.istio.io/service-semantics"
+	ServiceSemanticsInferencePool = "inferencepool"
 
 	// ThirdPartyJwtPath is the default 3P token to authenticate with third party services
 	ThirdPartyJwtPath = "./var/run/secrets/tokens/istio-token"
@@ -237,4 +235,9 @@ const (
 	MSEOriginName            = "internal.mse.kubernetes.io/mse-origin-name"
 	GlobalWildcardHost       = "*"
 	// End added by ingress
+)
+
+const (
+	InferencePoolEndpointPickerModeLabel   = "higress.io/inferencepool-endpoint-picker-mode"
+	InferencePoolEndpointPickerModeBuiltin = "builtin"
 )
