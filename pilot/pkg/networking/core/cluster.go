@@ -350,7 +350,7 @@ func (configgen *ConfigGeneratorImpl) buildOutboundClusters(cb *ClusterBuilder, 
 			if defaultCluster == nil {
 				continue
 			}
-			if service.UseInferenceSemantics() &&
+			if proxy.Type == model.Router && service.UseInferenceSemantics() &&
 				service.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel] == constants.InferencePoolEndpointPickerModeBuiltin {
 				defaultCluster.cluster.HealthChecks = []*core.HealthCheck{inferencePoolMetricsHealthCheck(string(service.Hostname))}
 			}

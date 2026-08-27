@@ -739,6 +739,15 @@ func TestInferencePoolBuiltinMetricsHealthCheck(t *testing.T) {
 	if external == nil || len(external.HealthChecks) != 0 {
 		t.Fatalf("external EPP cluster must not get a BuiltIn health check: %+v", external)
 	}
+
+	sidecar := xdstest.ExtractCluster("outbound|8080||inference.test",
+		buildTestClusters(clusterTest{
+			t: t, serviceHostname: "inference.test", nodeType: model.SidecarProxy, mesh: testMesh(),
+			inferencePoolCluster: true, builtinInferencePicker: true,
+		}))
+	if sidecar == nil || len(sidecar.HealthChecks) != 0 {
+		t.Fatalf("sidecar cluster must not get a BuiltIn health check: %+v", sidecar)
+	}
 }
 
 func TestBuildGatewayClustersWithRingHashLb(t *testing.T) {
