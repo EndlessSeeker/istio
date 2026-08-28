@@ -16,7 +16,6 @@ package core
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -430,9 +429,13 @@ func (p clusterPatcher) patchBuiltinInferencePool(hosts []host.Name, c *cluster.
 
 func inferencePoolMetricsHealthCheck(servingHost string) *core.HealthCheck {
 	return &core.HealthCheck{
-		Timeout:            durationpb.New(2 * time.Second),
-		Interval:           durationpb.New(5 * time.Second),
-		UnhealthyThreshold: wrappers.UInt32(math.MaxUint32),
+		Timeout:  durationpb.New(2 * time.Second),
+		Interval: durationpb.New(5 * time.Second),
+		// The picker can override Envoy's normal LB choice, so a host that no
+		// longer answers the metrics probe must be excluded immediately. This
+		// also prevents endpoints pending dynamic removal from being selected
+		// with their last stored metrics snapshot.
+		UnhealthyThreshold: wrappers.UInt32(1),
 		HealthyThreshold:   wrappers.UInt32(1),
 		StoreMetrics:       true,
 		HealthChecker: &core.HealthCheck_HttpHealthCheck_{
