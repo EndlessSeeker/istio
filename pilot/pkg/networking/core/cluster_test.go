@@ -28,6 +28,7 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	overridehost "github.com/envoyproxy/go-control-plane/envoy/extensions/load_balancing_policies/override_host/v3"
 	http "github.com/envoyproxy/go-control-plane/envoy/extensions/upstreams/http/v3"
+	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/gomega"
 	//. "github.com/onsi/gomega/gstruct"
@@ -411,6 +412,111 @@ func TestBuildClustersForBuiltinInferencePoolPreservesDefaultLoadBalancer(t *tes
 	g.Expect(c.GetLoadBalancingPolicy()).To(BeNil())
 }
 
+func TestBuiltinInferencePoolMetricsHealthCheck(t *testing.T) {
+	const hostname = "pool.default.svc.cluster.local"
+	tests := []struct {
+		name          string
+		nodeType      model.NodeType
+		inferencePool bool
+		pickerMode    string
+		patchContext  networking.EnvoyFilter_PatchContext
+		wantPath      string
+		wantHost      string
+		wantMetrics   bool
+	}{
+		{
+			name:          "built-in picker replaces competing gateway health check",
+			nodeType:      model.Router,
+			inferencePool: true,
+			pickerMode:    constants.InferencePoolEndpointPickerModeBuiltin,
+			patchContext:  networking.EnvoyFilter_GATEWAY,
+			wantPath:      "/metrics",
+			wantHost:      hostname,
+			wantMetrics:   true,
+		},
+		{
+			name:          "external picker keeps gateway health check",
+			nodeType:      model.Router,
+			inferencePool: true,
+			patchContext:  networking.EnvoyFilter_GATEWAY,
+			wantPath:      "/ready",
+			wantHost:      "custom.test",
+		},
+		{
+			name:         "ordinary service keeps gateway health check",
+			nodeType:     model.Router,
+			patchContext: networking.EnvoyFilter_GATEWAY,
+			wantPath:     "/ready",
+			wantHost:     "custom.test",
+		},
+		{
+			name:          "sidecar keeps its health check",
+			nodeType:      model.SidecarProxy,
+			inferencePool: true,
+			pickerMode:    constants.InferencePoolEndpointPickerModeBuiltin,
+			patchContext:  networking.EnvoyFilter_SIDECAR_OUTBOUND,
+			wantPath:      "/ready",
+			wantHost:      "custom.test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			clusters := buildTestClusters(clusterTest{
+				t:                               t,
+				serviceHostname:                 hostname,
+				nodeType:                        tt.nodeType,
+				mesh:                            testMesh(),
+				inferencePoolCluster:            tt.inferencePool,
+				inferencePoolEndpointPickerMode: tt.pickerMode,
+				envoyFilter:                     metricsHealthCheckEnvoyFilter(tt.patchContext, hostname),
+			})
+			c := xdstest.ExtractCluster("outbound|8080||"+hostname, clusters)
+			g.Expect(c.GetHealthChecks()).To(HaveLen(1))
+			healthCheck := c.GetHealthChecks()[0]
+			g.Expect(healthCheck.GetHttpHealthCheck().GetPath()).To(Equal(tt.wantPath))
+			g.Expect(healthCheck.GetHttpHealthCheck().GetHost()).To(Equal(tt.wantHost))
+			g.Expect(healthCheck.GetStoreMetrics()).To(Equal(tt.wantMetrics))
+			if tt.wantMetrics {
+				g.Expect(healthCheck.GetTimeout()).To(Equal(durationpb.New(2 * time.Second)))
+				g.Expect(healthCheck.GetInterval()).To(Equal(durationpb.New(5 * time.Second)))
+				g.Expect(healthCheck.GetUnhealthyThreshold().GetValue()).To(Equal(uint32(math.MaxUint32)))
+				g.Expect(healthCheck.GetHealthyThreshold().GetValue()).To(Equal(uint32(1)))
+				g.Expect(healthCheck.GetHttpHealthCheck().GetExpectedStatuses()).To(Equal([]*typev3.Int64Range{{Start: 100, End: 600}}))
+			}
+		})
+	}
+}
+
+func metricsHealthCheckEnvoyFilter(context networking.EnvoyFilter_PatchContext, hostname string) *networking.EnvoyFilter {
+	return &networking.EnvoyFilter{
+		ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+			{
+				ApplyTo: networking.EnvoyFilter_CLUSTER,
+				Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+					Context: context,
+					ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+						Cluster: &networking.EnvoyFilter_ClusterMatch{Name: "outbound|8080||" + hostname},
+					},
+				},
+				Patch: &networking.EnvoyFilter_Patch{
+					Operation: networking.EnvoyFilter_Patch_MERGE,
+					Value: buildPatchStruct(`{
+						"health_checks": [{
+							"timeout": "1s",
+							"interval": "1s",
+							"unhealthy_threshold": 2,
+							"healthy_threshold": 1,
+							"http_health_check": {"host": "custom.test", "path": "/ready"}
+						}]
+					}`),
+				},
+			},
+		},
+	}
+}
+
 func TestInferencePoolBuildsSingleOutboundCluster(t *testing.T) {
 	hostname := "pool.default.svc.cluster.local"
 	clusters := buildTestClusters(clusterTest{
@@ -533,6 +639,7 @@ type clusterTest struct {
 	destRule          proto.Message
 	sidecar           *networking.Sidecar
 	peerAuthn         *authn_beta.PeerAuthentication
+	envoyFilter       *networking.EnvoyFilter
 	externalService   bool
 
 	meta         *model.NodeMetadata
@@ -684,6 +791,16 @@ func buildTestClusters(c clusterTest) []*cluster.Cluster {
 				Namespace:        TestServiceNamespace,
 			},
 			Spec: c.peerAuthn,
+		})
+	}
+	if c.envoyFilter != nil {
+		configs = append(configs, config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             "inference-pool-health-check",
+				Namespace:        "default",
+			},
+			Spec: c.envoyFilter,
 		})
 	}
 
