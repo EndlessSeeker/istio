@@ -395,6 +395,22 @@ func TestBuildClustersForInferencePoolServicesSelectedHostKey(t *testing.T) {
 		To(Equal("x-gateway-destination-endpoint-served"))
 }
 
+func TestBuildClustersForBuiltinInferencePoolPreservesDefaultLoadBalancer(t *testing.T) {
+	g := NewWithT(t)
+	clusters := buildTestClusters(clusterTest{
+		t:                               t,
+		serviceHostname:                 "*.example.org",
+		nodeType:                        model.Router,
+		mesh:                            testMesh(),
+		istioVersion:                    model.MaxIstioVersion,
+		inferencePoolCluster:            true,
+		inferencePoolEndpointPickerMode: constants.InferencePoolEndpointPickerModeBuiltin,
+	})
+	c := xdstest.ExtractCluster("outbound|8080||*.example.org", clusters)
+	g.Expect(c.GetLbPolicy()).To(Equal(cluster.Cluster_LEAST_REQUEST))
+	g.Expect(c.GetLoadBalancingPolicy()).To(BeNil())
+}
+
 func TestInferencePoolBuildsSingleOutboundCluster(t *testing.T) {
 	hostname := "pool.default.svc.cluster.local"
 	clusters := buildTestClusters(clusterTest{
@@ -523,7 +539,8 @@ type clusterTest struct {
 	istioVersion *model.IstioVersion
 	proxyIps     []string
 
-	inferencePoolCluster bool
+	inferencePoolCluster            bool
+	inferencePoolEndpointPickerMode string
 }
 
 func (c clusterTest) fillDefaults() clusterTest {
@@ -568,6 +585,9 @@ func buildTestClusters(c clusterTest) []*cluster.Cluster {
 
 	if c.inferencePoolCluster {
 		service.Attributes.Labels[constants.InternalServiceSemantics] = "inferencepool"
+		if c.inferencePoolEndpointPickerMode != "" {
+			service.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel] = c.inferencePoolEndpointPickerMode
+		}
 	}
 
 	instances := []*model.ServiceInstance{

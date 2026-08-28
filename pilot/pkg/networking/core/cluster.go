@@ -36,6 +36,7 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/provider"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	"istio.io/istio/pilot/pkg/xds/endpoints"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/kind"
@@ -365,7 +366,8 @@ func (configgen *ConfigGeneratorImpl) buildOutboundClusters(cb *ClusterBuilder, 
 			subsetClusters := cb.applyDestinationRule(defaultCluster, DefaultClusterMode, service, port,
 				clusterKey.endpointBuilder, clusterKey.destinationRule.GetRule(), clusterKey.serviceAccounts)
 
-			if service.UseInferenceSemantics() && proxy.Type == model.Router {
+			if service.UseInferenceSemantics() && proxy.Type == model.Router &&
+				service.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel] != constants.InferencePoolEndpointPickerModeBuiltin {
 				cb.applyOverrideHostPolicy(defaultCluster)
 			}
 			if patched := cp.patch(nil, defaultCluster.build()); patched != nil {
