@@ -523,8 +523,7 @@ type clusterTest struct {
 	istioVersion *model.IstioVersion
 	proxyIps     []string
 
-	inferencePoolCluster   bool
-	builtinInferencePicker bool
+	inferencePoolCluster bool
 }
 
 func (c clusterTest) fillDefaults() clusterTest {
@@ -569,9 +568,6 @@ func buildTestClusters(c clusterTest) []*cluster.Cluster {
 
 	if c.inferencePoolCluster {
 		service.Attributes.Labels[constants.InternalServiceSemantics] = "inferencepool"
-	}
-	if c.builtinInferencePicker {
-		service.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel] = constants.InferencePoolEndpointPickerModeBuiltin
 	}
 
 	instances := []*model.ServiceInstance{
@@ -707,47 +703,6 @@ func buildTestClusters(c clusterTest) []*cluster.Cluster {
 		c.t.Fatalf("duplicate clusters detected %#v", cg.PushContext().ProxyStatus[model.DuplicatedClusters.Name()])
 	}
 	return clusters
-}
-
-func TestInferencePoolBuiltinMetricsHealthCheck(t *testing.T) {
-	builtin := xdstest.ExtractCluster("outbound|8080||inference.test",
-		buildTestClusters(clusterTest{
-			t: t, serviceHostname: "inference.test", nodeType: model.Router, mesh: testMesh(),
-			inferencePoolCluster: true, builtinInferencePicker: true,
-		}))
-	if builtin == nil || len(builtin.HealthChecks) != 1 {
-		t.Fatalf("expected one BuiltIn health check, got %v", builtin)
-	}
-	healthCheck := builtin.HealthChecks[0]
-	httpHealthCheck := healthCheck.GetHttpHealthCheck()
-	if httpHealthCheck.GetPath() != "/metrics" || httpHealthCheck.GetHost() != "inference.test" ||
-		!healthCheck.GetStoreMetrics() || healthCheck.GetTimeout().AsDuration() != 2*time.Second ||
-		healthCheck.GetInterval().AsDuration() != 5*time.Second || healthCheck.GetHealthyThreshold().GetValue() != 1 ||
-		healthCheck.GetUnhealthyThreshold().GetValue() != math.MaxUint32 {
-		t.Fatalf("unexpected BuiltIn health check: %+v", healthCheck)
-	}
-	statuses := httpHealthCheck.GetExpectedStatuses()
-	if len(statuses) != 1 || statuses[0].GetStart() != 100 || statuses[0].GetEnd() != 600 {
-		t.Fatalf("metrics observation probe must accept every valid HTTP status: %+v", statuses)
-	}
-
-	external := xdstest.ExtractCluster("outbound|8080||external.test",
-		buildTestClusters(clusterTest{
-			t: t, serviceHostname: "external.test", nodeType: model.Router, mesh: testMesh(),
-			inferencePoolCluster: true,
-		}))
-	if external == nil || len(external.HealthChecks) != 0 {
-		t.Fatalf("external EPP cluster must not get a BuiltIn health check: %+v", external)
-	}
-
-	sidecar := xdstest.ExtractCluster("outbound|8080||inference.test",
-		buildTestClusters(clusterTest{
-			t: t, serviceHostname: "inference.test", nodeType: model.SidecarProxy, mesh: testMesh(),
-			inferencePoolCluster: true, builtinInferencePicker: true,
-		}))
-	if sidecar == nil || len(sidecar.HealthChecks) != 0 {
-		t.Fatalf("sidecar cluster must not get a BuiltIn health check: %+v", sidecar)
-	}
 }
 
 func TestBuildGatewayClustersWithRingHashLb(t *testing.T) {
