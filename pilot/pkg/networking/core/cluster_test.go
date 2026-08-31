@@ -481,7 +481,7 @@ func TestBuiltinInferencePoolMetricsHealthCheck(t *testing.T) {
 			g.Expect(c.GetIgnoreHealthOnHostRemoval()).To(Equal(tt.wantMetrics))
 			if tt.wantMetrics {
 				g.Expect(healthCheck.GetTimeout()).To(Equal(durationpb.New(2 * time.Second)))
-				g.Expect(healthCheck.GetInterval()).To(Equal(durationpb.New(5 * time.Second)))
+				g.Expect(healthCheck.GetInterval()).To(Equal(durationpb.New(2 * time.Second)))
 				g.Expect(healthCheck.GetUnhealthyThreshold().GetValue()).To(Equal(uint32(math.MaxUint32)))
 				g.Expect(healthCheck.GetHealthyThreshold().GetValue()).To(Equal(uint32(1)))
 				g.Expect(healthCheck.GetHttpHealthCheck().GetExpectedStatuses()).To(Equal([]*typev3.Int64Range{{Start: 100, End: 600}}))

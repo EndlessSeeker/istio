@@ -435,7 +435,7 @@ func (p clusterPatcher) patchBuiltinInferencePool(hosts []host.Name, c *cluster.
 func inferencePoolMetricsHealthCheck(servingHost string) *core.HealthCheck {
 	return &core.HealthCheck{
 		Timeout:            durationpb.New(2 * time.Second),
-		Interval:           durationpb.New(5 * time.Second),
+		Interval:           durationpb.New(2 * time.Second),
 		UnhealthyThreshold: wrappers.UInt32(math.MaxUint32),
 		HealthyThreshold:   wrappers.UInt32(1),
 		StoreMetrics:       true,
